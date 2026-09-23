@@ -28,10 +28,10 @@ export function CustomCursor() {
 
   useEffect(() => {
     if (!enabled) {
-      delete document.documentElement.dataset.cursor;
+      delete document.documentElement.dataset.customCursor;
       return;
     }
-    document.documentElement.dataset.cursor = "custom";
+    document.documentElement.dataset.customCursor = "true";
 
     const dot = dotRef.current!;
     const ring = ringRef.current!;
@@ -85,7 +85,7 @@ export function CustomCursor() {
       gsap.ticker.remove(tick);
       document.removeEventListener("pointerover", onOver);
       document.documentElement.removeEventListener("pointerleave", onLeave);
-      delete document.documentElement.dataset.cursor;
+      delete document.documentElement.dataset.customCursor;
     };
   }, [enabled, setCursor]);
 

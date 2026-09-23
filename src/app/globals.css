@@ -123,8 +123,8 @@ body {
 }
 
 /* When the custom cursor is active, hide the native one everywhere. */
-html[data-cursor="custom"],
-html[data-cursor="custom"] * {
+html[data-custom-cursor],
+html[data-custom-cursor] * {
   cursor: none !important;
 }
 
