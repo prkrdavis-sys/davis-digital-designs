@@ -1,6 +1,6 @@
 "use client";
 
-import { createElement, useEffect, useRef } from "react";
+import { useEffect, useRef, type Ref } from "react";
 import { gsap } from "gsap";
 import { SplitText } from "gsap/SplitText";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -23,7 +23,7 @@ interface Props {
  * Splits text and staggers it in with a bouncy rise + slight rotation.
  * Words get a data attribute so parents can lean them with the cursor.
  */
-export function SplitHeading({ children, as: Tag = "h2", className, immediate, delay = 0, split = "chars" }: Props) {
+export function SplitHeading({ children, as = "h2", className, immediate, delay = 0, split = "chars" }: Props) {
   const ref = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -65,5 +65,11 @@ export function SplitHeading({ children, as: Tag = "h2", className, immediate, d
     };
   }, [children, immediate, delay, split]);
 
-  return createElement(Tag, { ref, className: cn("font-display inline-block", className) }, children);
+  // Cast keeps JSX happy with a dynamic tag; the real element is whatever `as` says.
+  const Tag = as as "div";
+  return (
+    <Tag ref={ref as Ref<HTMLDivElement>} className={cn("font-display inline-block", className)}>
+      {children}
+    </Tag>
+  );
 }

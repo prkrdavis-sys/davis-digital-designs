@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo, useRef, type RefObject } from "react";
+import { Suspense, useEffect, useMemo, useRef, type RefObject } from "react";
 import Image from "next/image";
 import { Canvas, useFrame, useLoader, useThree } from "@react-three/fiber";
 import * as THREE from "three";
@@ -61,9 +61,6 @@ function RipplePlane({ src, hover }: { src: string; hover: RefObject<boolean> })
   const target = useMemo(() => new THREE.Vector2(0.5, 0.5), []);
   const strength = useRef(0);
 
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.minFilter = THREE.LinearFilter;
-
   const uniforms = useMemo(
     () => ({
       uMap: { value: texture },
@@ -75,6 +72,12 @@ function RipplePlane({ src, hover }: { src: string; hover: RefObject<boolean> })
     }),
     [texture],
   );
+
+  useEffect(() => {
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.minFilter = THREE.LinearFilter;
+    texture.needsUpdate = true;
+  }, [texture]);
 
   useFrame((state, dt) => {
     const u = mat.current?.uniforms;

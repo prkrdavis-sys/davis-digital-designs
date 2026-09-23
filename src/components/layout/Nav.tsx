@@ -24,12 +24,13 @@ export function Nav() {
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
-    onScroll();
+    const raf = window.requestAnimationFrame(onScroll);
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    return () => {
+      window.cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", onScroll);
+    };
   }, []);
-
-  useEffect(() => setOpen(false), [pathname]);
 
   useEffect(() => {
     if (!toast) return;
@@ -120,7 +121,7 @@ export function Nav() {
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.15 + i * 0.06, ease: EASE_CURVE.out }}
                 >
-                  <TransitionLink href={l.href} className="font-display block text-5xl font-bold tracking-tight text-[#1b2a22]">
+                  <TransitionLink href={l.href} onClick={() => setOpen(false)} className="font-display block text-5xl font-bold tracking-tight text-[#1b2a22]">
                     {l.label}
                   </TransitionLink>
                 </motion.li>

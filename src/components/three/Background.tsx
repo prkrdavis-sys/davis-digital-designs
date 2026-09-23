@@ -24,7 +24,8 @@ export function Background() {
   const [webgl, setWebgl] = useState<boolean | null>(null);
 
   useEffect(() => {
-    setWebgl(supportsWebGL());
+    const raf = window.requestAnimationFrame(() => setWebgl(supportsWebGL()));
+    return () => window.cancelAnimationFrame(raf);
   }, []);
 
   const live = webgl === true && !reducedMotion;

@@ -18,6 +18,35 @@ function noise2(x: number, z: number): number {
   );
 }
 
+const TREE_COUNT = 140;
+
+/** Deterministic tree placement so the forest is identical on every visit. */
+function buildTreeMatrices(count: number): THREE.Matrix4[] {
+  const dummy = new THREE.Object3D();
+  const list: THREE.Matrix4[] = [];
+  let seed = 7;
+  const rand = () => {
+    seed = (seed * 16807) % 2147483647;
+    return seed / 2147483647;
+  };
+  for (let i = 0; i < count; i++) {
+    const side = rand() > 0.5 ? 1 : -1;
+    const x = side * (10 + rand() * 28);
+    const z = -rand() * TERRAIN_LENGTH + TERRAIN_LENGTH / 2;
+    const valley = Math.exp(-Math.pow(x / 9, 2)) * 3.2;
+    const edgeRise = Math.pow(Math.abs(x) / (WIDTH / 2), 2.2) * 6;
+    const y = noise2(x, z) - valley + edgeRise;
+    if (y < -0.3) continue;
+    const s = 0.7 + rand() * 1.3;
+    dummy.position.set(x, y + s * 0.9, z);
+    dummy.scale.set(s, s * 1.6, s);
+    dummy.rotation.y = rand() * Math.PI;
+    dummy.updateMatrix();
+    list.push(dummy.matrix.clone());
+  }
+  return list;
+}
+
 /**
  * Low-poly rolling hills the camera flies over. A flat "water" plane sits
  * beneath so valleys read as lakes. Colors lerp with season and night.
@@ -44,32 +73,7 @@ export function Terrain() {
     return geo;
   }, []);
 
-  const treeCount = 140;
-  const treeMatrices = useMemo(() => {
-    const dummy = new THREE.Object3D();
-    const list: THREE.Matrix4[] = [];
-    let seed = 7;
-    const rand = () => {
-      seed = (seed * 16807) % 2147483647;
-      return seed / 2147483647;
-    };
-    for (let i = 0; i < treeCount; i++) {
-      const side = rand() > 0.5 ? 1 : -1;
-      const x = side * (10 + rand() * 28);
-      const z = -rand() * TERRAIN_LENGTH + TERRAIN_LENGTH / 2;
-      const valley = Math.exp(-Math.pow(x / 9, 2)) * 3.2;
-      const edgeRise = Math.pow(Math.abs(x) / (WIDTH / 2), 2.2) * 6;
-      const y = noise2(x, z) - valley + edgeRise;
-      if (y < -0.3) continue;
-      const s = 0.7 + rand() * 1.3;
-      dummy.position.set(x, y + s * 0.9, z);
-      dummy.scale.set(s, s * 1.6, s);
-      dummy.rotation.y = rand() * Math.PI;
-      dummy.updateMatrix();
-      list.push(dummy.matrix.clone());
-    }
-    return list;
-  }, []);
+  const treeMatrices = useMemo(() => buildTreeMatrices(TREE_COUNT), []);
 
   useFrame(() => {
     if (hills.current) hills.current.color.copy(sceneState.terrainTop);
@@ -94,7 +98,7 @@ export function Terrain() {
         <planeGeometry args={[WIDTH * 2, TERRAIN_LENGTH * 1.5]} />
         <meshStandardMaterial ref={water} roughness={0.2} metalness={0.1} transparent opacity={0.92} />
       </mesh>
-      <instancedMesh ref={trees} args={[undefined, undefined, treeCount]} frustumCulled={false}>
+      <instancedMesh ref={trees} args={[undefined, undefined, TREE_COUNT]} frustumCulled={false}>
         <coneGeometry args={[1, 2, 6]} />
         <meshStandardMaterial ref={treeMat} flatShading roughness={0.9} />
       </instancedMesh>
