@@ -29,7 +29,7 @@ export const metadata: Metadata = {
   },
   description:
     "Websites, web apps, games, content, and Canva templates by Davis Digital Designs. Professional work with a lot of pizazz.",
-  metadataBase: new URL("https://davisdigitaldesigns.vercel.app"),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://davis-digital-designs-ten.vercel.app"),
   openGraph: {
     title: "Davis Digital Designs",
     description: "Professional work with a lot of pizazz.",
