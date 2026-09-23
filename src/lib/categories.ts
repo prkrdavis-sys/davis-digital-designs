@@ -72,8 +72,12 @@ export function getCategory(slug: string): Category | undefined {
   return CATEGORIES.find((c) => c.slug === slug);
 }
 
-/** Map a pathname to the season its page should wear. */
-export function seasonForPath(pathname: string): Season {
+/**
+ * Map a pathname to the season its page should wear.
+ * Returns null for project pages, which set their own season from the project's category.
+ */
+export function seasonForPath(pathname: string): Season | null {
+  if (pathname.startsWith("/work/")) return null;
   if (pathname.startsWith("/shop")) return "golden";
   const cat = CATEGORIES.find((c) => pathname.startsWith(c.href));
   if (cat) return cat.season;

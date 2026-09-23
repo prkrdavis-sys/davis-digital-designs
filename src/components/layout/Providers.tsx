@@ -44,7 +44,8 @@ export function Providers({ children }: { children: ReactNode }) {
   }, [setTheme, setCapabilities]);
 
   useEffect(() => {
-    setSeason(seasonForPath(pathname));
+    const season = seasonForPath(pathname);
+    if (season) setSeason(season);
   }, [pathname, setSeason]);
 
   useEffect(() => {
