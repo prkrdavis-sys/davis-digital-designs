@@ -125,7 +125,7 @@ export function Scene({ season, quality }: SceneProps) {
       <FogColor />
       <Terrain />
       <HeroModel />
-      <Fireflies count={quality === "high" ? 380 : 130} />
+      <Fireflies count={quality === "high" ? 285 : 98} />
       <SeasonParticles season={season} scale={particleScale} />
       {quality === "high" && (
         <EffectComposer multisampling={0}>
