@@ -27,10 +27,17 @@ export interface PanelMeta {
   cover: string;
 }
 
+/** Exposure (stops) each 8-bit lightmap was saved at; the runtime multiplies by 2^-exposure. */
+export interface LightmapExposure {
+  iron: number;
+  masonry: number;
+  floor: number;
+}
+
 export interface GreenhouseMeta {
-  lightmapExposure: number;
   /** Floor lightmap: planar projection of Blender XY bounds (x0, y0, x1, y1). */
   floor: { bounds: [number, number, number, number]; lm: [number, number] };
+  lm?: Partial<Record<Variant, LightmapExposure>>;
   day: SkyMeta;
   night: SkyMeta;
   bulbs: Vec3[];
@@ -47,6 +54,12 @@ export function loadMeta(): Promise<GreenhouseMeta> {
     return r.json() as Promise<GreenhouseMeta>;
   });
   return pending;
+}
+
+const DEFAULT_LM: LightmapExposure = { iron: -1, masonry: -1, floor: -2 };
+
+export function lightmapExposure(meta: GreenhouseMeta, variant: Variant): LightmapExposure {
+  return meta.lm?.[variant] ?? DEFAULT_LM;
 }
 
 export const HI = "/worlds/greenhouse/hi";

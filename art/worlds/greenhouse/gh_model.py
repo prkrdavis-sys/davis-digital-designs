@@ -44,6 +44,7 @@ GROUPS = {
     "masonry": ["brick", "stone", "soil", "wood", "terracotta", "moss"],
     "glass": ["glass"],
     "floor": ["floor_tiles"],
+    "wire": ["iron", "gilt", "wire"],
 }
 IRON, GILT, WIRE = 0, 1, 2
 BRICK, STONE, SOIL, WOOD, TERRA, MOSS = range(6)
@@ -96,8 +97,8 @@ def nave_frames():
 
 
 class Parts:
-    def __init__(self):
-        self.mb = defaultdict(MeshBuilder)
+    def __init__(self, store=None):
+        self.mb = store() if store else defaultdict(MeshBuilder)
         self.spots = defaultdict(list)  # planting spots by kind
         self.bulbs = []  # (pos, string id)
         self.lanterns = []  # (pos, yaw)
@@ -129,17 +130,21 @@ def column(mb, x, y, z0, z1, r=0.075, capital=True):
     seg = 32
     h0, h1 = z0 + 0.3, z1 - (0.34 if capital else 0.05)
     rings = []
-    for zz, rr in ((h0, r * 1.06), (h0 + (h1 - h0) * 0.5, r * 1.02), (h1, r * 0.95)):
+    zs = (h0, h0 + (h1 - h0) * 0.5, h1)
+    for zz, rr in zip(zs, (r * 1.06, r * 1.02, r * 0.95)):
         ring = []
         for j in range(seg):
             a = TAU * j / seg
             k = rr * (1 - 0.07 * (0.5 + 0.5 * math.cos(16 * a)))
             ring.append(mb.vert((x + k * math.cos(a), y + k * math.sin(a), zz)))
         rings.append(ring)
-    for r0, r1 in zip(rings, rings[1:]):
+    circ = TAU * r
+    isl = mb.new_island()
+    for i, (r0, r1) in enumerate(zip(rings, rings[1:])):
         for j in range(seg):
             q = (j + 1) % seg
-            mb.face((r0[j], r0[q], r1[q], r1[j]), IRON)
+            u0, u1 = circ * j / seg, circ * (j + 1) / seg
+            mb.face((r0[j], r0[q], r1[q], r1[j]), IRON, uv=((u0, zs[i]), (u1, zs[i]), (u1, zs[i + 1]), (u0, zs[i + 1])), island=isl)
     if capital:
         cap = [(r * 0.95, 0.0), (r * 1.25, 0.03), (r * 1.1, 0.06), (r * 1.15, 0.1), (r * 1.5, 0.2), (r * 1.95, 0.28), (r * 2.05, 0.3), (r * 2.05, 0.34)]
         mb.lathe(cap, (x, y, h1), 24, IRON, cap_top=True)
@@ -166,7 +171,7 @@ def ring_tube(mb, center, radius, r, normal="y", mat=IRON, n=24):
     mb.tube(pts, r, 5, mat, closed=True, caps=False)
 
 
-def arcade(mb, a, b, drop=0.62, crown=0.14, scroll_r=0.011):
+def arcade(mb, a, b, drop=0.62, crown=0.14, scroll_r=0.012):
     """Segmental arch with scroll-filled spandrels between two column tops a, b (at beam level)."""
     a, b = V(a), V(b)
     ab = b - a
@@ -198,7 +203,7 @@ def arcade(mb, a, b, drop=0.62, crown=0.14, scroll_r=0.011):
         uc = 0.2
         vc = arch_v(uc) * 0.5
         rr = min(uc, -vc) * 0.62
-        ring = [S(uc + rr * math.cos(t), vc + rr * math.sin(t)) for t in [TAU * i / 20 for i in range(20)]]
+        ring = [S(uc + rr * math.cos(t), vc + rr * math.sin(t)) for t in [TAU * i / 14 for i in range(14)]]
         mb.tube(ring, scroll_r, 5, IRON, closed=True, caps=False)
         # Rosette inside the ring.
         for k in range(4):
@@ -210,7 +215,7 @@ def arcade(mb, a, b, drop=0.62, crown=0.14, scroll_r=0.011):
             continue
         lam = max(0.24, (u1 - u0) / max(1, round((u1 - u0) / 0.32)))
         wave = []
-        steps = int((u1 - u0) / 0.02)
+        steps = int((u1 - u0) / 0.035)
         for i in range(steps + 1):
             uu = u0 + (u1 - u0) * i / steps
             band = arch_v(uu)
@@ -224,7 +229,7 @@ def arcade(mb, a, b, drop=0.62, crown=0.14, scroll_r=0.011):
             amp = -band * 0.24
             sgn = 1 if k % 2 == 0 else -1
             cx, cv = uu + lam * 0.18, band * 0.5 + sgn * amp * 0.35
-            sp = spiral((cx, cv), amp * 0.75, amp * 0.12, math.pi if sgn > 0 else 0.0, 1.2, 26, -sgn)
+            sp = spiral((cx, cv), amp * 0.75, amp * 0.12, math.pi if sgn > 0 else 0.0, 1.2, 12, -sgn)
             mb.tube([S(p[0], p[1]) for p in sp], scroll_r * 0.9, 4, IRON)
             uu += lam * 0.5
             k += 1
@@ -251,15 +256,15 @@ def cresting_unit(mb, origin, along, up, w=0.3, h=0.34, r=0.009):
     def P(x, y):
         return o + a * x + u * y
 
-    mb.tube([P(0, 0), P(0, h)], r * 1.3, 5, IRON)
-    mb.sphere(P(0, h + 0.03), 0.028, 8, 6, GILT)
-    ring = [P(0.045 * math.cos(t), h * 0.55 + 0.045 * math.sin(t)) for t in [TAU * i / 16 for i in range(16)]]
-    mb.tube(ring, r, 4, IRON, closed=True, caps=False)
+    mb.tube([P(0, 0), P(0, h)], r * 1.3, 4, IRON)
+    mb.sphere(P(0, h + 0.03), 0.028, 6, 4, GILT)
+    ring = [P(0.045 * math.cos(t), h * 0.55 + 0.045 * math.sin(t)) for t in [TAU * i / 10 for i in range(10)]]
+    mb.tube(ring, r, 3, IRON, closed=True, caps=False)
     # Two C-scrolls meeting between posts.
     for s in (-1, 1):
-        sp = spiral((s * w * 0.28, h * 0.32), h * 0.26, h * 0.05, math.pi / 2 if s > 0 else math.pi / 2, 0.9, 20, s)
-        mb.tube([P(x, y) for x, y in sp], r, 4, IRON)
-    mb.tube([P(-w / 2, h * 0.12), P(w / 2, h * 0.12)], r, 4, IRON)
+        sp = spiral((s * w * 0.28, h * 0.32), h * 0.26, h * 0.05, math.pi / 2 if s > 0 else math.pi / 2, 0.9, 11, s)
+        mb.tube([P(x, y) for x, y in sp], r, 3, IRON)
+    mb.tube([P(-w / 2, h * 0.12), P(w / 2, h * 0.12)], r, 3, IRON)
 
 
 # --------------------------------------------------------------------------
@@ -619,9 +624,10 @@ def soil_patch(mb, a, b, z, n=10):
             y = a[1] + (b[1] - a[1]) * j / n
             row.append(mb.vert((x, y, z + rng.uniform(-0.015, 0.02))))
         ids.append(row)
-    for i in range(n):
-        for j in range(n):
-            mb.face((ids[i][j], ids[i + 1][j], ids[i + 1][j + 1], ids[i][j + 1]), SOIL)
+    with mb.island():
+        for i in range(n):
+            for j in range(n):
+                mb.face((ids[i][j], ids[i + 1][j], ids[i + 1][j + 1], ids[i][j + 1]), SOIL)
 
 
 def round_bed(P, c, r, h):
@@ -638,10 +644,11 @@ def round_bed(P, c, r, h):
             a = TAU * j / 48
             ring.append(mb.vert((c[0] + max(rr, 0.01) * math.cos(a), c[1] + max(rr, 0.01) * math.sin(a), h - 0.08 + rng.uniform(-0.02, 0.03) + 0.06 * (i / 8))))
         rings.append(ring)
-    for r0, r1 in zip(rings, rings[1:]):
-        for j in range(48):
-            q = (j + 1) % 48
-            mb.face((r0[j], r0[q], r1[q], r1[j]), SOIL)
+    with mb.island():
+        for r0, r1 in zip(rings, rings[1:]):
+            for j in range(48):
+                q = (j + 1) % 48
+                mb.face((r0[j], r0[q], r1[q], r1[j]), SOIL)
     P.spots["center_bed"].append((c, r - 0.3, h - 0.05))
 
 
@@ -801,12 +808,12 @@ def build_floor(P):
     P.floor_bounds = (x0, y0, x1, y1)
 
 
-def build_all():
-    P = Parts()
+def build_all(store=None):
+    P = Parts(store)
 
     def bulbs_string(pts, sid, spacing):
         pts = resample(pts, spacing * 0.25)
-        P("iron", "wires").tube(pts, 0.004, 3, WIRE, caps=False)
+        P("wire", "all").tube(pts, 0.004, 3, WIRE, caps=False)
         acc = 0.0
         for a, b in zip(pts, pts[1:]):
             acc += (b - a).length
