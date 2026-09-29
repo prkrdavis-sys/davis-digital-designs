@@ -133,7 +133,7 @@ def step_rail():
 def step_atlas():
     import pl_atlas
 
-    pl_atlas.build(OUT, PUB, samples=args.samples or (16 if args.preview else 48))
+    pl_atlas.build(OUT, PUB, samples=args.samples or (12 if args.preview else 24))
 
 
 # --------------------------------------------------------------------------
