@@ -42,9 +42,12 @@ def extra_args(p):
     p.add_argument("--s", type=float, default=0.5)
     p.add_argument("--tags", default="")
     p.add_argument("--bake-size", type=int, default=2048)
+    p.add_argument("--still-scale", type=float, default=1.0, help="resolution factor for layers and pano (quick passes)")
 
 
 args = cli.parse([extra_args])
+LAYER_RES = (int(1920 * args.still_scale), int(1200 * args.still_scale))
+PANO_RES = (int(4096 * args.still_scale), int(2048 * args.still_scale))
 OUT, PUB = cli.scene_dirs(SCENE_ID)
 REPO = HERE.parents[2]
 lin = cl.lin
@@ -576,7 +579,12 @@ def step_layers():
         sc, cam, bands = stage(variant)
         for s in tags:
             tag = f"{variant}-s{int(round(s * 100)):03d}"
-            render.layers(cam, s + OFFSET, [("back", bands["back"]), ("mid", bands["mid"])], OUT / "layers", tag, samples=sc.cycles.samples)
+            rails.set_at(s + OFFSET)
+            # The colonnade wraps around the camera, so its median depth can land in front of
+            # the doors; keep it behind them so Low Resources parallax reads the right way.
+            mid = render._band_depth(cam, bands["mid"]) or 8.0
+            back = max(render._band_depth(cam, bands["back"]) or 0.0, mid * 1.8)
+            render.layers(cam, s + OFFSET, [("back", bands["back"]), ("mid", bands["mid"])], OUT / "layers", tag, res=LAYER_RES, samples=sc.cycles.samples, depths={"back": back, "mid": mid})
             fix_manifest(tag, s)
 
 
@@ -587,7 +595,7 @@ def step_pano():
         png = OUT / f"pano-{variant}.png"
         # Face the doors receding along the right-hand side.
         yaw = math.degrees(math.atan2(12.0, 4.5))
-        render.panorama(png, loc, res=(4096, 2048), samples=args.samples or 64, look_yaw_deg=yaw)
+        render.panorama(png, loc, res=PANO_RES, samples=args.samples or 64, look_yaw_deg=yaw)
         cli.log("pano", variant, png)
 
 

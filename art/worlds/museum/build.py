@@ -66,32 +66,39 @@ SKY_CELLS = [6, 14, 22]  # first ceiling row of each skylight (4 rows each)
 
 PAL = {
     "day": {
-        "wall": lin("#d9c7c1"),
+        "wall": lin("#e8d6cd"),
         "wainscot": lin("#3b3a40"),
-        "stone": lin("#f1ece6"),
+        "stone": lin("#f3eee8"),
         "stone_vein": lin("#c9bfb7"),
-        "ceiling": lin("#f4efe7"),
+        "ceiling": lin("#f6f1ea"),
         "gilt_trim": lin("#d6b06a"),
-        "sky": lin("#bcd4ff"),
-        "sun": (1.0, 0.93, 0.82),
-        "sun_strength": 6.5,
+        "floor_b": lin("#3a383d"),
+        "sky": lin("#cfe0ff"),
+        "sun": (1.0, 0.9, 0.76),
+        "sun_strength": 7.5,
         "spot": 260.0,
         "far": [lin("#fff5e6"), lin("#ffe9d2"), lin("#fff8ee")],
-        "sky_strength": 0.9,
+        "sky_strength": 2.4,
+        # Diffuse skylight under each lantern, and warm cove light washing the walls.
+        "laylight": (2600.0, (1.0, 0.97, 0.92)),
+        "cove": (5200.0, (1.0, 0.88, 0.74)),
     },
     "night": {
-        "wall": lin("#8c7f86"),
+        "wall": lin("#9c8e94"),
         "wainscot": lin("#1d1c22"),
         "stone": lin("#d6d2da"),
         "stone_vein": lin("#8e8a98"),
         "ceiling": lin("#bdb8c6"),
         "gilt_trim": lin("#c29a55"),
-        "sky": lin("#0a1030"),
+        "floor_b": lin("#2a2830"),
+        "sky": lin("#0c1438"),
         "sun": (0.55, 0.66, 1.0),
-        "sun_strength": 0.9,
-        "spot": 420.0,
+        "sun_strength": 1.6,
+        "spot": 520.0,
         "far": [lin("#1a1a38"), lin("#2a2550"), lin("#1a1a38")],
-        "sky_strength": 0.25,
+        "sky_strength": 0.6,
+        "laylight": (260.0, (0.6, 0.7, 1.0)),
+        "cove": (0.0, (1.0, 1.0, 1.0)),
     },
 }
 SUN_DIR = {"day": Vector((-0.42, 0.22, 0.88)).normalized(), "night": Vector((-0.3, -0.25, 0.92)).normalized()}
@@ -323,13 +330,81 @@ def build_hall(variant):
     return walls, ceiling, furn
 
 
+def floor_marble(name, a, b, inlay, vein, tile=2.0, joint=0.018, rough=0.05):
+    """Light slabs, each with an inlaid diamond of dark marble ringed by a gilt band and
+    gilt joints: the same pattern the runtime floor shader draws (mode 1)."""
+    m, nt, out = cl._nt(name)
+    bsdf = nt.nodes.new("ShaderNodeBsdfPrincipled")
+    nt.links.new(bsdf.outputs[0], out.inputs["Surface"])
+    geo_n = nt.nodes.new("ShaderNodeNewGeometry")
+    sep = nt.nodes.new("ShaderNodeSeparateXYZ")
+    nt.links.new(geo_n.outputs["Position"], sep.inputs[0])
+
+    def op(kind, a_, b_=None, c_=None):
+        n = nt.nodes.new("ShaderNodeMath")
+        n.operation = kind
+        for k, v in enumerate((a_, b_, c_)):
+            if v is None:
+                continue
+            if isinstance(v, (int, float)):
+                n.inputs[k].default_value = float(v)
+            else:
+                nt.links.new(v, n.inputs[k])
+        return n.outputs[0]
+
+    dists, edges = [], []
+    for axis in ("X", "Y"):
+        f = op("FRACT", op("DIVIDE", sep.outputs[axis], tile))
+        dists.append(op("ABSOLUTE", op("SUBTRACT", f, 0.5)))
+        edges.append(op("MULTIPLY", op("MINIMUM", f, op("SUBTRACT", 1.0, f)), tile))
+    d = op("MULTIPLY", op("ADD", dists[0], dists[1]), tile)
+    r = tile * 0.32
+    diamond = op("LESS_THAN", d, r)
+    band = op("LESS_THAN", op("ABSOLUTE", op("SUBTRACT", d, r)), joint * 0.7)
+    jmask = op("LESS_THAN", op("MINIMUM", edges[0], edges[1]), joint * 0.5)
+    inlay_mask = op("MAXIMUM", band, jmask)
+    wave = nt.nodes.new("ShaderNodeTexWave")
+    wave.inputs["Scale"].default_value = 0.35
+    wave.inputs["Distortion"].default_value = 12.0
+    wave.inputs["Detail"].default_value = 6
+    nt.links.new(geo_n.outputs["Position"], wave.inputs["Vector"])
+    vr = nt.nodes.new("ShaderNodeValToRGB")
+    vr.color_ramp.elements[0].color = (*vein, 1)
+    vr.color_ramp.elements[1].position = 0.1
+    vr.color_ramp.elements[1].color = (1, 1, 1, 1)
+    nt.links.new(wave.outputs["Fac"], vr.inputs["Fac"])
+    base = nt.nodes.new("ShaderNodeMix")
+    base.data_type = "RGBA"
+    base.inputs[6].default_value = (*a, 1)
+    base.inputs[7].default_value = (*b, 1)
+    nt.links.new(diamond, base.inputs["Factor"])
+    veined = nt.nodes.new("ShaderNodeMix")
+    veined.data_type = "RGBA"
+    veined.blend_type = "MULTIPLY"
+    veined.inputs["Factor"].default_value = 0.55
+    nt.links.new(base.outputs[2], veined.inputs[6])
+    nt.links.new(vr.outputs["Color"], veined.inputs[7])
+    final = nt.nodes.new("ShaderNodeMix")
+    final.data_type = "RGBA"
+    final.inputs[7].default_value = (*inlay, 1)
+    nt.links.new(inlay_mask, final.inputs["Factor"])
+    nt.links.new(veined.outputs[2], final.inputs[6])
+    nt.links.new(final.outputs[2], bsdf.inputs["Base Color"])
+    metal = op("MULTIPLY", inlay_mask, 0.85)
+    nt.links.new(metal, bsdf.inputs["Metallic"])
+    bsdf.inputs["Roughness"].default_value = rough
+    bsdf.inputs["Coat Weight"].default_value = 0.5
+    bsdf.inputs["Coat Roughness"].default_value = 0.02
+    return m
+
+
 def build_floor(variant, white=False):
     h = HALL
     if white:
         m = mat.principled(f"floor_white_{variant}", base=(0.8, 0.8, 0.8), rough=0.9)
     else:
         pal = PAL[variant]
-        m = cl.floor_tiles(f"floor_{variant}", pal["stone"], lin("#3a383d") if variant == "day" else lin("#2a2830"), lin("#c9a45a"), tile=2.0, rough=0.05, vein=pal["stone_vein"])
+        m = floor_marble(f"floor_{variant}", pal["stone"], pal["floor_b"], lin("#cda65c"), pal["stone_vein"], tile=2.0)
     pieces = []
     ys = np.linspace(h["y0"], h["y1"], 5)
     for k in range(4):
@@ -427,6 +502,19 @@ def lights(variant, hang):
         # Picture light washing down the canvas.
         pl = scene.area_light(f"plight{i}", Mw @ Vector((0, -0.34, hgi["ch"] / 2 + 0.45)), size=hgi["cw"] * 0.5, size_y=0.05, power=18.0 if variant == "day" else 30.0, color=(1.0, 0.85, 0.65))
         pl.rotation_euler = ((Mw.to_3x3() @ Vector((0, 0.5, -1))).normalized()).to_track_quat("-Z", "Y").to_euler()
+    lay_w, lay_c = pal["laylight"]
+    if lay_w > 0:
+        for r0 in SKY_CELLS:
+            ya, yb = HALL["y0"] + r0 * CELL, HALL["y0"] + (r0 + 4) * CELL
+            w = 2 * HALL["x"] - 4 * CELL
+            ll = scene.area_light("laylight", (0.0, (ya + yb) / 2, HALL["ceil"] + 0.3), size=w * 0.9, size_y=(yb - ya) * 0.9, power=lay_w, color=lay_c)
+            ll.rotation_euler = (0, 0, 0)
+    cove_w, cove_c = pal["cove"]
+    if cove_w > 0:
+        L = HALL["y1"] - HALL["y0"]
+        for s in (-1, 1):
+            cv = scene.area_light("cove", (s * (HALL["x"] - 0.5), (HALL["y0"] + HALL["y1"]) / 2, HALL["ceil"] - 0.7), size=0.3, size_y=L * 0.96, power=cove_w, color=cove_c)
+            cv.rotation_euler = (0, math.radians(-38 * s), 0)
     # Sculpture spots.
     for loc, tgt, pw in (((0.0, 24.0, 7.1), (2.9, 22.75, 1.5), 180), ((0.0, 11.0, 7.1), (2.9, 9.75, 1.6), 180), ((0.0, 30.0, 7.1), (0.0, 35.2, 2.2), 420)):
         sp = scene.spot_light("sculpt", loc, (0, 0, 0), power=pw * (1.4 if variant == "night" else 1.0), spot_deg=22, blend=0.5, radius=0.05, color=(1.0, 0.9, 0.78))
@@ -466,7 +554,7 @@ def shafts(variant, layout):
     nt.nodes.clear()
     out = nt.nodes.new("ShaderNodeOutputMaterial")
     vol = nt.nodes.new("ShaderNodeVolumePrincipled")
-    vol.inputs["Density"].default_value = 0.035 if variant == "day" else 0.05
+    vol.inputs["Density"].default_value = 0.05 if variant == "day" else 0.06
     vol.inputs["Anisotropy"].default_value = 0.35
     nt.links.new(vol.outputs[0], out.inputs["Volume"])
     objs = []
@@ -611,7 +699,12 @@ def step_layers():
         sc, cam, bands = stage(variant)
         for s in tags:
             tag = f"{variant}-s{int(round(s * 100)):03d}"
-            render.layers(cam, s + OFFSET, [("back", bands["back"]), ("mid", bands["mid"])], OUT / "layers", tag, res=LAYER_RES, samples=sc.cycles.samples)
+            rails.set_at(s + OFFSET)
+            # The hall shell wraps around the camera, so its median depth can land in front of
+            # the artworks; keep it behind them so Low Resources parallax reads the right way.
+            mid = render._band_depth(cam, bands["mid"]) or 8.0
+            back = max(render._band_depth(cam, bands["back"]) or 0.0, mid * 1.8)
+            render.layers(cam, s + OFFSET, [("back", bands["back"]), ("mid", bands["mid"])], OUT / "layers", tag, res=LAYER_RES, samples=sc.cycles.samples, depths={"back": back, "mid": mid})
             p = OUT / "layers" / f"{tag}.json"
             info = json.loads(p.read_text())
             info["s"] = s
@@ -640,12 +733,46 @@ def step_mini():
     lean = math.radians(12)
     tilt = math.sin(lean)
     for sx in (-1, 1):
-        parts.append(geo.tube("leg", [(sx * 0.3, 0.0, 0.0), (sx * 0.1, tilt * 1.0, 1.0)], radius=0.018, segments=8))
-    parts.append(geo.tube("rear", [(0, 0.55, 0.0), (0, tilt * 0.85, 0.85)], radius=0.016, segments=8))
-    parts.append(geo.tube("bar", [(-0.26, tilt * 0.2 - 0.01, 0.2), (0.26, tilt * 0.2 - 0.01, 0.2)], radius=0.014, segments=8))
+        parts.append(geo.tube("leg", [(sx * 0.3, 0.0, 0.0), (sx * 0.1, tilt * 1.0, 1.0)], radius=0.018, segments=14))
+    parts.append(geo.tube("rear", [(0, 0.55, 0.0), (0, tilt * 0.85, 0.85)], radius=0.016, segments=14))
+    parts.append(geo.tube("bar", [(-0.26, tilt * 0.2 - 0.01, 0.2), (0.26, tilt * 0.2 - 0.01, 0.2)], radius=0.014, segments=12))
     parts.append(cl.box("ledge", (0.62, 0.08, 0.03), (0, tilt * 0.36 - 0.04, 0.36), bevel=0.004))
+    parts.append(geo.tube("clamp", [(-0.05, tilt * 0.98 - 0.02, 0.98), (0.05, tilt * 0.98 - 0.02, 0.98)], radius=0.02, segments=12))
     for o in parts:
         mat.assign(o, walnut)
+    # Round walnut base with a brass ring, so the miniature sits on its own plinth.
+    base = cl.lathe("mini_base", [(0.0, -0.06), (0.5, -0.06), (0.52, -0.045), (0.52, -0.015), (0.5, 0.0), (0.0, 0.0)], 64)
+    mat.assign(base, walnut)
+    ring = cl.lathe("mini_ring", [(0.505, -0.04), (0.525, -0.04), (0.525, -0.022), (0.505, -0.022)], 64)
+    mat.assign(ring, gl._m["brass"])
+    parts += [base, ring]
+    # A palette of paint dabs leaning on the rear leg, and a jar of brushes at the foot.
+    pal_m = mat.principled("mini_palette", base=lin("#c79a62"), rough=0.4, coat=0.3)
+    palette = cl.cylinder("palette", 0.13, 0.008, (0, 0, 0), segments=32)
+    palette.data.transform(Matrix.Diagonal((1.25, 1.0, 1.0, 1.0)))
+    mat.assign(palette, pal_m)
+    dabs = []
+    for k, hexc in enumerate(("#ff9cc2", "#9dbcff", "#ffe08f", "#8fd08a", "#f3efe8", "#ff8a66")):
+        a = 0.6 + k * 0.72
+        d = geo.primitive("ico", f"dab{k}", subdiv=2, radius=0.022)
+        d.data.transform(Matrix.Translation((math.cos(a) * 0.1, math.sin(a) * 0.075, 0.008)) @ Matrix.Diagonal((1.0, 1.0, 0.45, 1.0)))
+        mat.assign(d, mat.principled(f"mini_paint{k}", base=lin(hexc), rough=0.25, coat=0.6))
+        dabs.append(d)
+    pal_obj = geo.join([palette] + dabs, "mini_palette")
+    pal_obj.data.transform(Matrix.Translation((0.3, 0.3, 0.2)) @ Matrix.Rotation(math.radians(35), 4, "Z") @ Matrix.Rotation(math.radians(70), 4, "X"))
+    parts.append(pal_obj)
+    jar_m = mat.principled("mini_jar", base=(0.9, 0.95, 1.0), transmission=0.9, rough=0.08)
+    jar = cl.lathe("jar", [(0.0, 0.0), (0.045, 0.0), (0.05, 0.01), (0.05, 0.1), (0.055, 0.11), (0.0, 0.11)], 24, (-0.33, 0.12, 0.0))
+    mat.assign(jar, jar_m)
+    parts.append(jar)
+    for k in range(3):
+        ang = math.radians(-20 + k * 20)
+        tip = (-0.33 + math.sin(ang) * 0.06, 0.12 + math.cos(ang) * 0.02, 0.26)
+        br = geo.tube(f"brush{k}", [(-0.33, 0.12, 0.02), tip], radius=0.006, segments=8)
+        mat.assign(br, walnut if k != 1 else mat.principled("mini_brush_red", base=lin("#8a0f1e"), rough=0.35, coat=0.5))
+        bristle = cl.cylinder(f"bristle{k}", 0.008, 0.03, tip, segments=8, radius2=0.001)
+        mat.assign(bristle, gl._m["brass"])
+        parts += [br, bristle]
     # Painting leaning back on the easel.
     cw, ch = 0.56, 0.35
     fr, ohw, ohh = gl.gilded_frame("mini_frame", cw, ch)
