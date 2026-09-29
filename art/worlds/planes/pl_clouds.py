@@ -137,43 +137,54 @@ def cloud_material(name, density=1.2, erosion=0.75, gain=1.7, scale=0.08, billow
 # --------------------------------------------------------------------------
 # Shapes. All in Blender space (Z up), meters = runtime units.
 def tower_spheres(seed, height, width, base=(0.0, 0.0, -8.0), lean=0.12):
-    """Cumulus congestus: a leaning core column with cauliflower lumps, widest near the base."""
+    """Cumulus congestus massif: a main turret and two or three lower ones, cauliflower lumps
+    on every turret, over a broad flat base. `width` is the whole massif's width."""
     rng = random.Random(seed)
     bx, by, bz = base
     out = []
-    n = max(6, int(height / (width * 0.18)))
     core = []
+    turrets = [(0.0, 0.0, 1.0, 0.27)]
+    side = rng.choice((-1, 1))
+    for k in range(rng.randint(2, 3)):
+        side = -side
+        turrets.append((side * width * rng.uniform(0.2, 0.3), rng.uniform(-0.12, 0.12) * width, rng.uniform(0.42, 0.72), rng.uniform(0.15, 0.2)))
     lean_dir = rng.uniform(0, math.tau)
-    for k in range(n):
-        f = k / (n - 1)
-        z = bz + height * (f**0.92) * 0.82
-        r = width * 0.5 * (1.0 - 0.5 * f**1.3) * rng.uniform(0.85, 1.08)
-        off = width * lean * f * f
-        x = bx + math.cos(lean_dir) * off + rng.uniform(-0.06, 0.06) * width
-        y = by + math.sin(lean_dir) * off + rng.uniform(-0.06, 0.06) * width
-        core.append((x, y, z, r))
+    for ox, oy, hf, rf in turrets:
+        th = height * hf
+        r0 = width * rf
+        n = max(5, int(th / (r0 * 0.55)))
+        for k in range(n):
+            f = k / (n - 1)
+            head = max(0.0, (f - 0.72) / 0.28)
+            r = r0 * (1.0 - 0.22 * f + 0.3 * head * (1.0 - head) * 2.0) * rng.uniform(0.9, 1.06)
+            z = bz + r0 * 0.6 + (th - r0 * 1.6) * f
+            off = width * lean * f * f
+            x = bx + ox + math.cos(lean_dir) * off + rng.uniform(-0.03, 0.03) * width
+            y = by + oy + math.sin(lean_dir) * off + rng.uniform(-0.03, 0.03) * width
+            core.append((x, y, z, r))
     out += core
     # Cauliflower: lumps on the upper hemisphere of core spheres, a few rounds deep.
     lumps = []
-    for _ in range(n * 7):
+    for _ in range(len(core) * 7):
         cx, cy, cz, cr = rng.choice(core)
         th = rng.uniform(0, math.tau)
         ph = math.acos(rng.uniform(-0.35, 1.0))
         d = (math.sin(ph) * math.cos(th), math.sin(ph) * math.sin(th), math.cos(ph))
         rr = cr * rng.uniform(0.3, 0.55)
-        lumps.append((cx + d[0] * cr * 0.82, cy + d[1] * cr * 0.82, cz + d[2] * cr * 0.82, rr))
+        lumps.append((cx + d[0] * cr * 0.85, cy + d[1] * cr * 0.85, cz + d[2] * cr * 0.85, rr))
     out += lumps
-    for _ in range(n * 6):
+    for _ in range(len(core) * 8):
         cx, cy, cz, cr = rng.choice(lumps)
         th = rng.uniform(0, math.tau)
         ph = math.acos(rng.uniform(0.0, 1.0))
         d = (math.sin(ph) * math.cos(th), math.sin(ph) * math.sin(th), math.cos(ph))
-        out.append((cx + d[0] * cr * 0.8, cy + d[1] * cr * 0.8, cz + d[2] * cr * 0.8, cr * rng.uniform(0.35, 0.6)))
-    # Skirt: a wide flat base that melts into the sea.
-    for _ in range(10):
-        a = rng.uniform(0, math.tau)
-        rr = width * rng.uniform(0.28, 0.42)
-        out.append((bx + math.cos(a) * width * 0.45, by + math.sin(a) * width * 0.45, bz + rr * 0.2, rr))
+        out.append((cx + d[0] * cr * 0.85, cy + d[1] * cr * 0.85, cz + d[2] * cr * 0.85, cr * rng.uniform(0.35, 0.6)))
+    # Base: a ring of low, overlapping domes so the massif sits on a broad flat foot.
+    for k in range(14):
+        a = k / 14 * math.tau + rng.uniform(-0.2, 0.2)
+        rr = width * rng.uniform(0.13, 0.19)
+        d = width * rng.uniform(0.25, 0.4)
+        out.append((bx + math.cos(a) * d, by + math.sin(a) * d * 0.7, bz + rr * 0.35, rr))
     return np.array(out, dtype=np.float32)
 
 
@@ -186,12 +197,21 @@ def puff_spheres(seed, size=30.0, flat=0.55):
         d = rng.uniform(0.15, 0.32) * size
         out.append((math.cos(a) * d, math.sin(a) * d * 0.6, rng.uniform(-0.05, 0.08) * size, size * rng.uniform(0.18, 0.27)))
     base = list(out)
+    lumps = []
     for _ in range(40):
         cx, cy, cz, cr = rng.choice(base)
         th = rng.uniform(0, math.tau)
         ph = math.acos(rng.uniform(0.05, 1.0))
         d = (math.sin(ph) * math.cos(th), math.sin(ph) * math.sin(th), math.cos(ph))
-        out.append((cx + d[0] * cr * 0.85, cy + d[1] * cr * 0.85, cz + d[2] * cr * 0.85 * flat + cr * 0.1, cr * rng.uniform(0.3, 0.55)))
+        lumps.append((cx + d[0] * cr * 0.88, cy + d[1] * cr * 0.88, cz + d[2] * cr * 0.88 * flat + cr * 0.1, cr * rng.uniform(0.3, 0.55)))
+    out += lumps
+    # Third tier: small cauliflower florets on the upper lumps.
+    for _ in range(110):
+        cx, cy, cz, cr = rng.choice(lumps)
+        th = rng.uniform(0, math.tau)
+        ph = math.acos(rng.uniform(0.15, 1.0))
+        d = (math.sin(ph) * math.cos(th), math.sin(ph) * math.sin(th), math.cos(ph))
+        out.append((cx + d[0] * cr * 0.9, cy + d[1] * cr * 0.9, cz + d[2] * cr * 0.9, cr * rng.uniform(0.32, 0.52)))
     return np.array(out, dtype=np.float32)
 
 
