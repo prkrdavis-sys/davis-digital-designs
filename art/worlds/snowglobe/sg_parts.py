@@ -15,10 +15,11 @@ import numpy as np
 from mathutils import Matrix, Vector
 
 import sg_model as sm
-from ddd import geo, mat
+from ddd import cli, geo, mat
 
 CACHE = pathlib.Path(__file__).resolve().parents[2] / ".cache"
 TEX = CACHE / "polyhaven" / "texture"
+TINT_DIR = cli.OUT / "snowglobe" / "tex"
 REPO_FONTS = pathlib.Path(__file__).resolve().parents[3] / "public" / "worlds" / "everest" / "fonts"
 SYS_FONTS = pathlib.Path("/usr/share/fonts/truetype")
 
@@ -62,6 +63,31 @@ def tex_maps(tid, res):
     return out
 
 
+def tinted_image(path, tint):
+    """A copy of an sRGB texture multiplied by a linear tint. The tint is baked into
+    the file because the glTF exporter cannot follow a MixRGB node to the image."""
+    key = "".join(f"{round(c * 255):02x}" for c in tint)
+    dst = TINT_DIR / f"{path.stem}_x{key}.png"
+    if dst.exists():
+        return dst
+    TINT_DIR.mkdir(parents=True, exist_ok=True)
+    src = bpy.data.images.load(str(path))
+    W, H = src.size
+    px = np.array(src.pixels[:], np.float32).reshape(H, W, 4)
+    rgb = px[..., :3]
+    lin = np.where(rgb <= 0.04045, rgb / 12.92, ((rgb + 0.055) / 1.055) ** 2.4) * np.array(tint, np.float32)
+    px[..., :3] = np.where(lin <= 0.0031308, lin * 12.92, 1.055 * np.power(np.clip(lin, 0, 1), 1 / 2.4) - 0.055)
+    px[..., 3] = 1.0
+    out = bpy.data.images.new(dst.stem, W, H, alpha=False)
+    out.pixels.foreach_set(px.ravel())
+    out.filepath_raw = str(dst)
+    out.file_format = "PNG"
+    out.save()
+    bpy.data.images.remove(out)
+    bpy.data.images.remove(src)
+    return dst
+
+
 def pbr_mat(name, tid, res="1k", normal_strength=1.0, tint=None, diffuse_res=None, **props):
     if name in _mats:
         return _mats[name]
@@ -72,16 +98,8 @@ def pbr_mat(name, tid, res="1k", normal_strength=1.0, tint=None, diffuse_res=Non
     nt = m.node_tree
     b = mat.bsdf_of(m)
     if "diffuse" in maps:
-        t = mat.image_node(m, maps["diffuse"], "sRGB")
-        if tint:
-            mix = nt.nodes.new("ShaderNodeMixRGB")
-            mix.blend_type = "MULTIPLY"
-            mix.inputs["Fac"].default_value = 1.0
-            mix.inputs[2].default_value = (*tint, 1)
-            nt.links.new(t.outputs["Color"], mix.inputs[1])
-            nt.links.new(mix.outputs[0], b.inputs["Base Color"])
-        else:
-            nt.links.new(t.outputs["Color"], b.inputs["Base Color"])
+        t = mat.image_node(m, tinted_image(maps["diffuse"], tint) if tint else maps["diffuse"], "sRGB")
+        nt.links.new(t.outputs["Color"], b.inputs["Base Color"])
     if "rough" in maps and "rough" not in props:
         t = mat.image_node(m, maps["rough"], "Non-Color")
         nt.links.new(t.outputs["Color"], b.inputs["Roughness"])
@@ -390,7 +408,6 @@ def ground_mesh(vm):
             v.co.z = max(v.co.z, sm.GLOBE_C[2] - math.sqrt(max(0.0, sm.R_IN ** 2 - r * r)) + 0.004)
     o = _obj("ground", bm, "village", vm["snow"])
     geo.smooth(o, 180)
-    planar_uv(o, 6.0)
     # Skirt down into the base so the seam is hidden.
     skirt = lathe("ground_skirt", [(sm.VILLAGE_R + 0.02, sm.BASE_TOP - 0.02), (sm.VILLAGE_R + 0.02, sm.BASE_TOP + 0.03)], "village", vm["snow"], seg=96)
     return [o, skirt]
@@ -403,7 +420,6 @@ def pond(vm):
     bmesh.ops.scale(bm, vec=Vector((sm.POND["rx"] * 1.02, sm.POND["ry"] * 1.02, 1)), verts=bm.verts)
     ice = _obj("ice", bm, "village", vm["ice"])
     ice.location = (c[0], c[1], sm.POND_Z)
-    planar_uv(ice, 4.0)
     return [ice]
 
 
@@ -758,7 +774,7 @@ def path_mesh(vm):
     for k, pts2 in enumerate((sm.PATH, sm.PATH_B)):
         pts = sm.path_points(pts2, 0.006)
         p3 = [(x, y, sm.ground(x, y) + 0.0012) for x, y in pts]
-        r = ribbon(f"path{k}", p3, 0.05 if k == 0 else 0.04, "village", vm["snow_path"], uv_len=0.2)
+        r = ribbon(f"path{k}", p3, 0.05 if k == 0 else 0.04, "village", vm["snow_path"], uv_len=4.0)
         # Conform each vertex to the ground.
         for v in r.data.vertices:
             v.co.z = sm.ground(v.co.x, v.co.y) + 0.0012
