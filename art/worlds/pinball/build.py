@@ -45,10 +45,10 @@ args = cli.parse([extra_args])
 OUT, PUB = cli.scene_dirs(SCENE_ID)
 CACHE = cli.CACHE
 
-SUP = pathlib.Path("/System/Library/Fonts/Supplemental")
-F_BLACK = SUP / "Arial Black.ttf"
-F_COND = SUP / "DIN Condensed Bold.ttf"
-F_ROUND = SUP / "Arial Rounded Bold.ttf"
+FONTS = CACHE / "fonts"  # OFL Google Fonts, fetched by build.sh
+F_BLACK = FONTS / "ArchivoBlack-Regular.ttf"
+F_COND = FONTS / "BebasNeue-Regular.ttf"
+F_ROUND = FONTS / "TitanOne-Regular.ttf"
 WOOD = CACHE / "polyhaven/texture/ash_veneer/ash_veneer_diffuse_2k.png"
 HDRI = CACHE / "polyhaven/hdri/studio_small_09/studio_small_09_2k.hdr"
 ART = OUT / "playfield_art.png"
