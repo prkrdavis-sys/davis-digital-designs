@@ -1,0 +1,42 @@
+[
+ {
+  "slug": "aba-ops",
+  "title": "ABA Ops",
+  "category": "apps",
+  "year": 2026,
+  "cover": "/work/aba-ops/cover.png",
+  "aspect": 1.6
+ },
+ {
+  "slug": "red-square-4",
+  "title": "Red Square 4",
+  "category": "play",
+  "year": 2026,
+  "cover": "/work/red-square-4/cover.png",
+  "aspect": 1.6
+ },
+ {
+  "slug": "vibecheck-series",
+  "title": "VibeCheck Series",
+  "category": "create",
+  "year": 2026,
+  "cover": "/work/vibecheck-series/cover.png",
+  "aspect": 1.6
+ },
+ {
+  "slug": "wunderful-life",
+  "title": "Wunderful Life",
+  "category": "sites",
+  "year": 2026,
+  "cover": "/work/wunderful-life/cover.png",
+  "aspect": 1.6
+ },
+ {
+  "slug": "vtcc-redesign",
+  "title": "VTCC Redesign",
+  "category": "sites",
+  "year": 2025,
+  "cover": "/work/vtcc-redesign/cover.png",
+  "aspect": 1.6
+ }
+]
