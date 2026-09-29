@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { HDRLoader } from "three/examples/jsm/loaders/HDRLoader.js";
+import { EXRLoader } from "three/examples/jsm/loaders/EXRLoader.js";
 import type { Variant } from "@/worlds/types";
 
 /** Layout and tracks exported by art/worlds/snowglobe (sg_model.export_meta + the bake step). */
@@ -39,11 +39,11 @@ export function loadSparkle(): Promise<Float32Array> {
 }
 
 const hdrCache = new Map<string, Promise<THREE.DataTexture>>();
-/** Equirect HDR (rendered from the globe centre in Blender, already in three.js orientation). */
+/** Equirect HDR (rendered from the globe centre in Blender, already in three.js orientation): half-float DWAA EXR. */
 export function loadHDR(url: string): Promise<THREE.DataTexture> {
   let p = hdrCache.get(url);
   if (!p) {
-    p = new HDRLoader().loadAsync(url).then((t) => {
+    p = new EXRLoader().loadAsync(url).then((t) => {
       t.mapping = THREE.EquirectangularReflectionMapping;
       return t;
     });
@@ -52,8 +52,8 @@ export function loadHDR(url: string): Promise<THREE.DataTexture> {
   return p;
 }
 
-export const envUrl = (v: Variant) => `${BASE}/hi/env-${v}.hdr`;
-export const bgUrl = (v: Variant) => `${BASE}/hi/bg-${v}.hdr`;
+export const envUrl = (v: Variant) => `${BASE}/hi/env-${v}.exr`;
+export const bgUrl = (v: Variant) => `${BASE}/hi/bg-${v}.exr`;
 export const lightmapUrl = (group: string, v: Variant) => `${BASE}/hi/lm-${group}-${v}.webp`;
 export const LIGHTMAP_GROUPS = ["village", "trees", "desk", "props"] as const;
 
