@@ -8,6 +8,7 @@ import { sfx } from "@/lib/sfx";
 import { burstAt } from "@/components/fx/ParticleBurst";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
+import { launchPlane } from "@/worlds/scenes/planes/launch";
 
 const BUDGETS = ["Under $1k", "$1k – $3k", "$3k – $8k", "$8k+", "Not sure yet"];
 
@@ -21,6 +22,7 @@ export function ContactForm({ defaultSubject = "" }: Props) {
   const card = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (state.status === "sent" || state.status === "fallback") launchPlane();
     if (state.status === "sent") {
       sfx.success();
       const r = card.current?.getBoundingClientRect();
