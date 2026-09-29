@@ -46,9 +46,12 @@ def extra_args(p):
     p.add_argument("--s", type=float, default=0.5)
     p.add_argument("--tags", default="")
     p.add_argument("--bake-size", type=int, default=2048)
+    p.add_argument("--still-scale", type=float, default=1.0, help="resolution factor for layers and pano (quick passes)")
 
 
 args = cli.parse([extra_args])
+LAYER_RES = (int(1920 * args.still_scale), int(1200 * args.still_scale))
+PANO_RES = (int(4096 * args.still_scale), int(2048 * args.still_scale))
 OUT, PUB = cli.scene_dirs(SCENE_ID)
 REPO = HERE.parents[2]
 lin = cl.lin
@@ -608,7 +611,7 @@ def step_layers():
         sc, cam, bands = stage(variant)
         for s in tags:
             tag = f"{variant}-s{int(round(s * 100)):03d}"
-            render.layers(cam, s + OFFSET, [("back", bands["back"]), ("mid", bands["mid"])], OUT / "layers", tag, samples=sc.cycles.samples)
+            render.layers(cam, s + OFFSET, [("back", bands["back"]), ("mid", bands["mid"])], OUT / "layers", tag, res=LAYER_RES, samples=sc.cycles.samples)
             p = OUT / "layers" / f"{tag}.json"
             info = json.loads(p.read_text())
             info["s"] = s
@@ -621,7 +624,7 @@ def step_pano():
         loc = Vector((-0.8, 8.0, 1.75))
         png = OUT / f"pano-{variant}.png"
         yaw = math.degrees(math.atan2(4.0, 7.8))
-        render.panorama(png, loc, res=(4096, 2048), samples=args.samples or 64, look_yaw_deg=yaw)
+        render.panorama(png, loc, res=PANO_RES, samples=args.samples or 64, look_yaw_deg=yaw)
         cli.log("pano", variant, png)
 
 
