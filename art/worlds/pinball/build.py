@@ -28,9 +28,10 @@ import bpy  # noqa: E402
 import numpy as np  # noqa: E402
 from mathutils import Matrix, Vector  # noqa: E402
 
+import bakery  # noqa: E402
 import pinball_model as pm  # noqa: E402
 import shapes as sh  # noqa: E402
-from ddd import bake, cli, export, geo, mat, rails, render, scene  # noqa: E402
+from ddd import cli, export, geo, mat, rails, render, scene  # noqa: E402
 from shader import Graph  # noqa: E402
 
 SCENE_ID = "pinball"
@@ -341,6 +342,33 @@ def backglass_objects(bw, bh):
 
 # ==========================================================================
 # Table materials (Cycles). The runtime rebuilds equivalents in three.js.
+def clear_shadows(m, tint):
+    """Shadow rays pass through tinted: with caustics off, transmissive plastic would otherwise cast black shadows."""
+    nt = m.node_tree
+    out = next(n for n in nt.nodes if n.type == "OUTPUT_MATERIAL")
+    lp = nt.nodes.new("ShaderNodeLightPath")
+    tr = nt.nodes.new("ShaderNodeBsdfTransparent")
+    tr.inputs["Color"].default_value = (*tint, 1.0)
+    mix = nt.nodes.new("ShaderNodeMixShader")
+    nt.links.new(lp.outputs["Is Shadow Ray"], mix.inputs[0])
+    nt.links.new(mat.bsdf_of(m).outputs[0], mix.inputs[1])
+    nt.links.new(tr.outputs[0], mix.inputs[2])
+    nt.links.new(mix.outputs[0], out.inputs["Surface"])
+    return m
+
+
+def plain_surfaces(objs):
+    """Undo clear_shadows before glTF export so the exporter sees a bare Principled BSDF."""
+    for o in objs:
+        for m in o.data.materials:
+            if not m or not m.node_tree:
+                continue
+            nt = m.node_tree
+            out = next((n for n in nt.nodes if n.type == "OUTPUT_MATERIAL"), None)
+            if out and out.inputs["Surface"].is_linked and out.inputs["Surface"].links[0].from_node.type == "MIX_SHADER":
+                nt.links.new(mat.bsdf_of(m).outputs[0], out.inputs["Surface"])
+
+
 class Mats:
     def __init__(self, variant):
         self.v = variant
@@ -376,7 +404,7 @@ class Mats:
             return mat.principled("white_plastic", base=(0.92, 0.9, 0.88), rough=0.25, coat=0.6, coat_rough=0.1)
         if key.startswith("plastic_"):
             c = C[key[8:]]
-            return mat.principled(key, base=c, transmission=0.85, rough=0.08, ior=1.49, emission=c, emission_strength=0.6 if n else 0.0)
+            return clear_shadows(mat.principled(key, base=c, transmission=0.85, rough=0.08, ior=1.49, emission=c, emission_strength=0.6 if n else 0.0), tuple(0.45 + 0.4 * x for x in c))
         if key.startswith("post_"):
             return mat.principled(key, base=C[key[5:]], rough=0.18, coat=1.0, coat_rough=0.05, subsurface=0.2)
         if key == "ink_white":
@@ -398,7 +426,8 @@ class Mats:
         if key.startswith("neon_"):
             return mat.emission(key, C[key[5:]], 26.0 if n else 3.0)
         if key == "ramp_plastic":
-            return mat.principled("ramp_plastic", base=pm.lin("#b8f4ff"), transmission=0.92, rough=0.05, ior=1.49, emission=C["cyan"], emission_strength=0.35 if n else 0.0)
+            m = mat.principled("ramp_plastic", base=pm.lin("#b8f4ff"), transmission=0.92, rough=0.05, ior=1.49, emission=C["cyan"], emission_strength=0.35 if n else 0.0)
+            return clear_shadows(m, (0.78, 0.92, 0.96))
         if key == "wall":
             m = bpy.data.materials.new("wall")
             g = Graph(m)
@@ -837,8 +866,11 @@ def bake_lightmap(table, variant, samples):
     bpy.ops.object.bake(type="DIFFUSE", pass_filter={"DIRECT", "INDIRECT"}, margin=8, use_clear=True)
     path = OUT / variant / "lightmap.png"
     path.parent.mkdir(parents=True, exist_ok=True)
-    bake.save_srgb(img, path, exposure=-1.0)
-    return path
+    # Saved at 1/4 (the day softbox reaches ~3x white); the runtime scales it back by LIGHTMAP_SCALE.
+    return bakery.denoise(img, path, LIGHTMAP_EV)
+
+
+LIGHTMAP_EV = -2.0
 
 
 def strip_hidden(objs):
@@ -860,6 +892,29 @@ def strip_hidden(objs):
         bm.free()
 
 
+def merge_slots(o):
+    """geo.join keeps one slot per source object; collapse repeats so each material is one glTF primitive."""
+    me = o.data
+    first = {}
+    remap = []
+    for i, m in enumerate(me.materials):
+        remap.append(first.setdefault(m.name if m else "", len(first)))
+    if len(first) == len(me.materials):
+        return o
+    idx = np.zeros(len(me.polygons), dtype=np.int32)
+    me.polygons.foreach_get("material_index", idx)
+    idx = np.array(remap, dtype=np.int32)[idx]
+    keep = {}
+    for i, m in enumerate(me.materials):
+        keep.setdefault(remap[i], m)
+    me.materials.clear()
+    for k in range(len(keep)):
+        me.materials.append(keep[k])
+    me.polygons.foreach_set("material_index", idx)
+    me.update()
+    return o
+
+
 def join_roles(live):
     """Merge static live parts that share a role; animated parts keep their own node."""
     solo = ("flipper", "bumper_skirt", "bumper_cap", "bumper_star", "bumper_ring", "target_", "spinner", "insert_", "chase_", "backglass", "dmd")
@@ -873,7 +928,7 @@ def join_roles(live):
                 o.name = role if len(objs) == 1 else o.name
                 out.append(o)
         else:
-            out.append(geo.join(objs, role))
+            out.append(merge_slots(geo.join(objs, role)))
     return out
 
 
@@ -886,13 +941,14 @@ def step_bake():
         sc.cycles.device = "CPU"
         table = Table(variant).build()
         lights(variant, table)
-        samples = args.samples or (48 if args.preview else 320)
+        samples = args.samples or (48 if args.preview else 128)
         bake_lightmap(table, variant, samples)
         strip_hidden(table.baked)
-        cab = bake.bake_group(table.baked, "cabinet", OUT / variant, size=2048, samples=max(32, samples // 2), exposure=-1.0)
+        cab = bakery.bake_group(table.baked, "cabinet", OUT / variant, size=2048, samples=max(32, samples // 2), exposure=LIGHTMAP_EV)
         export.glb(OUT / f"cabinet-{variant}.glb", [cab])
         if first:
             nodes = [o for o in join_roles(table.live) if not o.name.startswith(("ball", "dmd_text_still"))]
+            plain_surfaces(nodes)
             export.glb(OUT / "hardware.glb", nodes)
             first = False
 

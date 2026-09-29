@@ -56,9 +56,9 @@ function Hi({ variant, mode }: SceneComponentProps) {
   const focus = useMemo(() => new THREE.Vector3(), []);
   usePostFX(
     ({ camera }) => {
-      const dof = new DepthOfFieldEffect(camera, { worldFocusRange: 2.2, bokehScale: night ? 3.2 : 2.6, resolutionScale: 0.5 });
+      const dof = new DepthOfFieldEffect(camera, { worldFocusRange: 2.2, bokehScale: night ? 3.2 : 2.0, resolutionScale: 0.5 });
       dof.target = focus;
-      const bloom = new BloomEffect({ intensity: night ? 1.5 : 0.5, luminanceThreshold: night ? 0.55 : 0.92, luminanceSmoothing: 0.3, mipmapBlur: true, radius: 0.75 });
+      const bloom = new BloomEffect({ intensity: night ? 1.5 : 0.45, luminanceThreshold: night ? 0.55 : 1.4, luminanceSmoothing: 0.3, mipmapBlur: true, radius: 0.75 });
       const ca = new ChromaticAberrationEffect({ offset: new THREE.Vector2(0.0007, 0.0005), radialModulation: true, modulationOffset: 0.4 });
       return [dof, bloom, ca];
     },
