@@ -103,8 +103,10 @@ function tuneMaterials(root: THREE.Object3D, variant: Variant) {
         m.color.set("#ffffff");
         break;
       case "steel":
-        m.anisotropy = 0.7;
-        m.roughness = 0.3;
+        // No anisotropy: the GLB has no tangents and derivative-based frames go NaN on its UVs, which bloom smears over the frame.
+        m.roughness = 0.26;
+        m.metalness = 1;
+        m.envMapIntensity = 1.4;
         break;
       case "snow":
         m.sheen = 0.8;
