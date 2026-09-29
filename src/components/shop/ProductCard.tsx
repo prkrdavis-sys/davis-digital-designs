@@ -57,11 +57,11 @@ export function ProductCard({ product }: { product: Product }) {
 
         <div className="mt-auto flex flex-wrap items-center gap-3 pt-6">
           {hasCheckout ? (
-            <Button href={product.checkoutUrl!} size="sm" variant="season" target="_blank" rel="noreferrer">
+            <Button href={product.checkoutUrl!} size="sm" variant="world" target="_blank" rel="noreferrer">
               Buy now
             </Button>
           ) : (
-            <Button href={contactHref} size="sm" variant={custom ? "season" : "primary"}>
+            <Button href={contactHref} size="sm" variant={custom ? "world" : "primary"}>
               {custom ? "Commission this" : "Notify me"}
             </Button>
           )}

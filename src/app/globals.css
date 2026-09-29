@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Registered so world accent changes animate instead of snapping. */
+@property --world-a { syntax: "<color>"; inherits: true; initial-value: #ff9cc2; }
+@property --world-b { syntax: "<color>"; inherits: true; initial-value: #9dbcff; }
+@property --world-c { syntax: "<color>"; inherits: true; initial-value: #ffe08f; }
+
 /* ------------------------------------------------------------------
    Davis Digital Designs — design tokens
    Light = "day", dark = "night". Both share one nature palette.
@@ -25,10 +30,10 @@
   --accent: var(--leaf);
   --accent-2: var(--petal);
 
-  /* season (overridden at runtime via data-season) */
-  --season-a: #ff9ec4;
-  --season-b: #a8e6c3;
-  --season-c: #fff2b3;
+  /* world accents (per-world rules are generated from src/lib/worlds.ts in the root layout) */
+  --world-a: #ff9cc2;
+  --world-b: #9dbcff;
+  --world-c: #ffe08f;
 
   --shadow-soft: 0 10px 40px -10px rgba(27, 42, 34, 0.18);
   --shadow-pop: 0 30px 80px -20px rgba(27, 42, 34, 0.35);
@@ -67,12 +72,6 @@
   --shadow-pop: 0 30px 80px -20px rgba(0, 0, 0, 0.8);
 }
 
-[data-season="spring"] { --season-a: #ff9ec4; --season-b: #a8e6c3; --season-c: #fff2b3; }
-[data-season="summer"] { --season-a: #ffb84d; --season-b: #5fb9e6; --season-c: #fff6d6; }
-[data-season="autumn"] { --season-a: #e8743b; --season-b: #ffb84d; --season-c: #7a2e1d; }
-[data-season="winter"] { --season-a: #bfe7ff; --season-b: #e9f4ff; --season-c: #a78bfa; }
-[data-season="golden"] { --season-a: #ffc06b; --season-b: #ff8f70; --season-c: #ffe6b8; }
-
 @theme inline {
   --color-bg: var(--bg);
   --color-bg-elev: var(--bg-elev);
@@ -87,9 +86,9 @@
   --color-lavender: var(--lavender);
   --color-moss: var(--moss);
   --color-accent: var(--accent);
-  --color-season-a: var(--season-a);
-  --color-season-b: var(--season-b);
-  --color-season-c: var(--season-c);
+  --color-world-a: var(--world-a);
+  --color-world-b: var(--world-b);
+  --color-world-c: var(--world-c);
 
   --font-display: var(--font-display), "Bricolage Grotesque", system-ui, sans-serif;
   --font-sans: var(--font-body), "Manrope", system-ui, sans-serif;
@@ -120,6 +119,18 @@ body {
 body {
   overflow-x: clip;
   transition: background-color var(--dur-slow) var(--ease-in-out), color var(--dur-slow) var(--ease-in-out);
+}
+
+/* Route veil: the page content dissolves while the 3D world transitions behind it. */
+main,
+footer {
+  transition: opacity 0.42s var(--ease-in-out), filter 0.42s var(--ease-in-out), transform 0.42s var(--ease-in-out);
+}
+html[data-leaving] main,
+html[data-leaving] footer {
+  opacity: 0;
+  filter: blur(10px);
+  transform: scale(0.985);
 }
 
 /* When the custom cursor is active, hide the native one everywhere. */
@@ -158,12 +169,13 @@ html[data-custom-cursor] * {
   box-shadow: var(--shadow-soft);
 }
 
-.season-gradient {
-  background: linear-gradient(135deg, var(--season-a), var(--season-b) 55%, var(--season-c));
+.world-gradient {
+  background: linear-gradient(135deg, var(--world-a), var(--world-b) 55%, var(--world-c));
+  transition: --world-a 0.9s, --world-b 0.9s, --world-c 0.9s;
 }
 
-.season-text {
-  background: linear-gradient(120deg, var(--season-a), var(--season-b), var(--season-c), var(--season-a));
+.world-text {
+  background: linear-gradient(120deg, var(--world-a), var(--world-b), var(--world-c), var(--world-a));
   background-size: 300% 100%;
   -webkit-background-clip: text;
   background-clip: text;
@@ -257,7 +269,7 @@ html.lenis body {
 .prose-ddd a { color: var(--accent); text-decoration: underline; text-underline-offset: 4px; }
 .prose-ddd strong { color: var(--ink); }
 .prose-ddd blockquote {
-  border-left: 4px solid var(--season-a);
+  border-left: 4px solid var(--world-a);
   padding-left: 1.25rem;
   font-style: italic;
   margin: 2rem 0;

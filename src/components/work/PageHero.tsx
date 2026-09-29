@@ -10,12 +10,14 @@ interface Props {
   title: string;
   blurb?: string;
   children?: ReactNode;
+  /** Scroll chapter id for the 3D world (defaults to "intro"). */
+  chapter?: string;
 }
 
 /** Shared page header: eyebrow pill, kinetic title, blurb, optional actions. */
-export function PageHero({ eyebrow, title, blurb, children }: Props) {
+export function PageHero({ eyebrow, title, blurb, children, chapter = "intro" }: Props) {
   return (
-    <header className="px-6 pb-12 pt-36 md:px-12 md:pt-44">
+    <header data-chapter={chapter} className="px-6 pb-12 pt-36 md:px-12 md:pt-44">
       <div className="mx-auto max-w-6xl">
         {eyebrow && (
           <motion.p

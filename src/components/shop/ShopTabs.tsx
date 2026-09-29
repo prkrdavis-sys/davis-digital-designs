@@ -37,7 +37,7 @@ export function ShopTabs({ products }: { products: Product[] }) {
                 tier === t.id ? "text-[#1b2a22]" : "text-[var(--ink)]",
               )}
             >
-              {tier === t.id && <motion.span layoutId="tier-pill" className="season-gradient absolute inset-0 -z-10 rounded-full" transition={springy} />}
+              {tier === t.id && <motion.span layoutId="tier-pill" className="world-gradient absolute inset-0 -z-10 rounded-full" transition={springy} />}
               <span className="relative">
                 {t.emoji} {t.label}
               </span>

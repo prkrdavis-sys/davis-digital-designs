@@ -3,8 +3,8 @@ import { SHOP } from "@/lib/categories";
 import { getAllProducts } from "@/lib/content";
 import { PageHero } from "@/components/work/PageHero";
 import { ShopTabs } from "@/components/shop/ShopTabs";
-import { SeasonAmbience } from "@/components/work/SeasonAmbience";
 import { Reveal } from "@/components/ui/Reveal";
+import { WORLDS } from "@/lib/worlds";
 
 export const metadata: Metadata = {
   title: SHOP.name,
@@ -21,14 +21,13 @@ export default function ShopPage() {
   const products = getAllProducts();
   return (
     <>
-      <SeasonAmbience season="golden" />
-      <PageHero eyebrow={`${SHOP.emoji} Golden hour · Warm glow, ready to ship`} title={SHOP.name} blurb={SHOP.blurb} />
-      <section className="px-6 pb-24 md:px-12">
+      <PageHero eyebrow={`${SHOP.emoji} ${WORLDS.shop.label} · ${WORLDS.shop.tagline}`} title={SHOP.name} blurb={SHOP.blurb} />
+      <section data-chapter="work" className="px-6 pb-24 md:px-12">
         <div className="mx-auto max-w-6xl">
           <ShopTabs products={products} />
         </div>
       </section>
-      <section className="px-6 pb-24 md:px-12">
+      <section data-chapter="faq" className="px-6 pb-24 md:px-12">
         <div className="mx-auto max-w-3xl">
           <Reveal>
             <h2 className="font-display mb-8 text-3xl font-bold tracking-tight md:text-5xl">Good to know</h2>

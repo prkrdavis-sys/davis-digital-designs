@@ -35,7 +35,7 @@ export function Hero() {
   }, [isTouch, reducedMotion]);
 
   return (
-    <section className="relative flex min-h-[100svh] flex-col justify-center px-6 pb-24 pt-36 md:px-12">
+    <section data-chapter="hero" className="relative flex min-h-[100svh] flex-col justify-center px-6 pb-24 pt-36 md:px-12">
       <div className="mx-auto w-full max-w-6xl [perspective:1200px]">
         <motion.p
           initial={{ opacity: 0, y: 12 }}
@@ -59,7 +59,7 @@ export function Hero() {
               that make people
             </SplitHeading>
             <span className="block">
-              <SplitHeading as="span" immediate delay={0.8} className="season-text">
+              <SplitHeading as="span" immediate delay={0.8} className="world-text">
                 go &ldquo;ooh.&rdquo;
               </SplitHeading>
             </span>
@@ -74,7 +74,7 @@ export function Hero() {
         >
           <p className="max-w-xl text-lg leading-relaxed text-[var(--ink-soft)] md:text-xl">
             I&rsquo;m Davis. I design and build <RotatingWord /> with professional bones and a playful heart. Scroll, and
-            watch the day go by.
+            step through the worlds.
           </p>
           <div className="flex flex-wrap gap-3">
             <Button href="/sites" size="lg">

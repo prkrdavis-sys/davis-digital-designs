@@ -63,7 +63,7 @@ export function FeaturedReel({ projects }: Props) {
   }, [pinned, projects.length]);
 
   return (
-    <section ref={section} className="relative overflow-hidden py-16 md:py-24">
+    <section ref={section} data-chapter="reel" className="relative overflow-hidden py-16 md:py-24">
       <div className="mx-auto mb-10 flex max-w-6xl flex-col gap-4 px-6 md:flex-row md:items-end md:justify-between md:px-12">
         <SplitHeading className="text-[clamp(2.2rem,5vw,4.5rem)] font-bold leading-[0.95] tracking-tight" split="words">
           Featured work
@@ -86,7 +86,7 @@ export function FeaturedReel({ projects }: Props) {
           <p className="font-display text-3xl font-bold leading-tight tracking-tight md:text-4xl">
             That&rsquo;s the highlight reel. There&rsquo;s more behind every door.
           </p>
-          <Button href="/sites" size="lg" variant="season">
+          <Button href="/sites" size="lg" variant="world">
             Browse everything
           </Button>
         </div>

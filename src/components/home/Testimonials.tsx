@@ -32,7 +32,7 @@ export function Testimonials() {
   const t = TESTIMONIALS[index];
 
   return (
-    <section className="relative px-6 py-24 md:px-12">
+    <section data-chapter="voices" className="relative px-6 py-24 md:px-12">
       <div className="mx-auto max-w-5xl">
         <Reveal className="mb-10 text-center">
           <SplitHeading className="text-[clamp(2rem,4.5vw,4rem)] font-bold leading-[0.95] tracking-tight" split="words">

@@ -24,7 +24,7 @@ const TIMELINE = [
 export function AboutStory() {
   return (
     <>
-      <section className="px-6 py-16 md:px-12">
+      <section data-chapter="values" className="px-6 py-16 md:px-12">
         <div className="mx-auto max-w-6xl">
           <div className="grid gap-6 md:grid-cols-4">
             {VALUES.map((v, i) => (
@@ -40,7 +40,7 @@ export function AboutStory() {
         </div>
       </section>
 
-      <section className="overflow-hidden py-10">
+      <section data-chapter="tools" className="overflow-hidden py-10">
         <Reveal className="mx-auto mb-6 max-w-6xl px-6 md:px-12">
           <SplitHeading className="text-[clamp(2rem,4vw,3.5rem)] font-bold leading-[0.95] tracking-tight" split="words">
             Tools I reach for
@@ -59,14 +59,14 @@ export function AboutStory() {
         </div>
       </section>
 
-      <section className="px-6 py-20 md:px-12">
+      <section data-chapter="story" className="px-6 py-20 md:px-12">
         <div className="mx-auto max-w-3xl">
           <ol className="relative space-y-10 border-l-2 border-[var(--line)] pl-8">
             {TIMELINE.map((t, i) => (
               <Reveal key={t.year} delay={i * 0.12}>
                 <li className="relative">
                   <motion.span
-                    className="season-gradient absolute -left-[41px] top-1 grid h-5 w-5 place-items-center rounded-full"
+                    className="world-gradient absolute -left-[41px] top-1 grid h-5 w-5 place-items-center rounded-full"
                     animate={{ scale: [1, 1.25, 1] }}
                     transition={{ duration: 2.4, repeat: Infinity, delay: i * 0.4 }}
                   />

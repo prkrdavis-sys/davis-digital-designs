@@ -22,9 +22,9 @@ interface Props {
 }
 
 const STORY: Array<{ key: "problem" | "solution" | "result"; label: string; emoji: string }> = [
-  { key: "problem", label: "The problem", emoji: "🌱" },
-  { key: "solution", label: "What I built", emoji: "🌿" },
-  { key: "result", label: "What happened", emoji: "🌳" },
+  { key: "problem", label: "The problem", emoji: "🧩" },
+  { key: "solution", label: "What I built", emoji: "🛠️" },
+  { key: "result", label: "What happened", emoji: "🚀" },
 ];
 
 export function ProjectArticle({ project, body, prev, next }: Props) {
@@ -33,7 +33,7 @@ export function ProjectArticle({ project, body, prev, next }: Props) {
 
   return (
     <>
-      <header className="px-6 pt-32 md:px-12 md:pt-40">
+      <header data-chapter="intro" className="px-6 pt-32 md:px-12 md:pt-40">
         <div className="mx-auto max-w-6xl">
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="mb-6 flex flex-wrap items-center gap-3">
             {category && (
@@ -64,7 +64,7 @@ export function ProjectArticle({ project, body, prev, next }: Props) {
               </span>
             ))}
             {project.link && (
-              <Button href={project.link} size="sm" variant="season" target="_blank" rel="noreferrer">
+              <Button href={project.link} size="sm" variant="world" target="_blank" rel="noreferrer">
                 {project.linkLabel ?? "Visit"} ↗
               </Button>
             )}
@@ -84,7 +84,7 @@ export function ProjectArticle({ project, body, prev, next }: Props) {
         </div>
       </motion.section>
 
-      <article ref={article} className="relative px-6 py-20 md:px-12">
+      <article ref={article} data-chapter="article" className="relative px-6 py-20 md:px-12">
         <Vine target={article} />
         <div className="mx-auto max-w-6xl">
           <div className="grid gap-6 md:grid-cols-3">
@@ -127,7 +127,7 @@ export function ProjectArticle({ project, body, prev, next }: Props) {
             <SplitHeading className="text-[clamp(2rem,4vw,3.5rem)] font-bold leading-[0.95] tracking-tight" split="words">
               Keep exploring
             </SplitHeading>
-            <Button href="/contact" variant="season" size="sm">
+            <Button href="/contact" variant="world" size="sm">
               Build this look for me
             </Button>
           </Reveal>

@@ -2,7 +2,7 @@
 
 import { gsap } from "gsap";
 
-const COLORS = ["var(--season-a)", "var(--season-b)", "var(--season-c)", "var(--petal)", "var(--sun)", "var(--sky)"];
+const COLORS = ["var(--world-a)", "var(--world-b)", "var(--world-c)", "var(--petal)", "var(--sun)", "var(--sky)"];
 
 /**
  * Spawns a burst of confetti-ish particles at (x, y) in viewport coordinates.

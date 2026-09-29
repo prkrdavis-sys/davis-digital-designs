@@ -5,21 +5,21 @@ import { usePathname } from "next/navigation";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { SplitText } from "gsap/SplitText";
-import { pointer, useUi } from "@/lib/store";
-import { seasonForPath } from "@/lib/categories";
+import { initialLowResources, pointer, storedAmbient, useUi } from "@/lib/store";
+import { worldForPath } from "@/lib/worlds";
 import { sfx } from "@/lib/sfx";
 
 gsap.registerPlugin(ScrollTrigger, SplitText);
 
 /**
- * Hydrates theme/mute from localStorage, tracks device capabilities, mirrors
- * the route season onto <html data-season>, and keeps the global pointer
- * object fresh. Also wires the delegated hover/click sounds.
+ * Hydrates theme/mute/quality from localStorage, tracks device capabilities,
+ * mirrors the route's world onto <html data-world>, and keeps the global
+ * pointer object fresh. Also wires the delegated hover/click sounds.
  */
 export function Providers({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const setTheme = useUi((s) => s.setTheme);
-  const setSeason = useUi((s) => s.setSeason);
+  const setWorld = useUi((s) => s.setWorld);
   const setCapabilities = useUi((s) => s.setCapabilities);
 
   useEffect(() => {
@@ -30,11 +30,14 @@ export function Providers({ children }: { children: ReactNode }) {
     if (window.localStorage.getItem("ddd:muted") === "true") {
       useUi.setState({ muted: true });
     }
+    useUi.setState({ ambient: storedAmbient() });
 
     const rm = window.matchMedia("(prefers-reduced-motion: reduce)");
     const touch = window.matchMedia("(hover: none), (pointer: coarse)");
     const update = () => setCapabilities({ reducedMotion: rm.matches, isTouch: touch.matches });
     update();
+    const low = initialLowResources(touch.matches);
+    useUi.setState({ lowResources: low.value, lowResourcesSource: low.source });
     rm.addEventListener("change", update);
     touch.addEventListener("change", update);
     return () => {
@@ -44,9 +47,9 @@ export function Providers({ children }: { children: ReactNode }) {
   }, [setTheme, setCapabilities]);
 
   useEffect(() => {
-    const season = seasonForPath(pathname);
-    if (season) setSeason(season);
-  }, [pathname, setSeason]);
+    const world = worldForPath(pathname);
+    if (world) setWorld(world, false, null);
+  }, [pathname, setWorld]);
 
   useEffect(() => {
     let lastX = 0;

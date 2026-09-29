@@ -39,9 +39,9 @@ export function SplitHeading({ children, as = "h2", className, immediate, delay 
     });
     const targets = split === "chars" ? splitter.chars : splitter.words;
     // background-clip:text does not reach into split children, so re-apply the
-    // gradient class on each piece when the heading uses season-text.
-    if (el.classList.contains("season-text")) {
-      targets.forEach((t) => t.classList.add("season-text"));
+    // gradient class on each piece when the heading uses world-text.
+    if (el.classList.contains("world-text")) {
+      targets.forEach((t) => t.classList.add("world-text"));
     }
 
     const tween = gsap.from(targets, {

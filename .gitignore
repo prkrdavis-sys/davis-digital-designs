@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# art pipeline: raw downloads, intermediate renders, and .blend files are reproducible from art/
+/art/.cache/
+/art/out/
+*.blend1
+__pycache__/

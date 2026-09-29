@@ -199,7 +199,7 @@ export function FireflyGame({ onClose }: { onClose: () => void }) {
           </h3>
           <p className="mt-2 text-white/70">Best so far: {Math.max(best.current, score)}. Send me your score with your project brief and I&rsquo;ll knock 5% off.</p>
           <div className="mt-6 flex justify-center gap-3">
-            <Button onClick={onClose} variant="season" quiet>
+            <Button onClick={onClose} variant="world" quiet>
               Back to the site
             </Button>
           </div>

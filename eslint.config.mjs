@@ -9,7 +9,7 @@ const eslintConfig = defineConfig([
     // Imperative animation code: R3F useFrame loops and GSAP tickers mutate
     // preallocated buffers on purpose. The React Compiler rules assume a pure
     // render model that does not apply to per-frame WebGL/canvas work.
-    files: ["src/components/three/**", "src/components/fx/**", "src/components/easter/FireflyGame.tsx"],
+    files: ["src/components/three/**", "src/components/fx/**", "src/components/cursor/**", "src/worlds/**", "src/components/easter/FireflyGame.tsx"],
     rules: {
       "react-hooks/immutability": "off",
       "react-hooks/purity": "off",
@@ -23,6 +23,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Vendored decoders (basis transcoder) and generated world assets.
+    "public/**",
+    "art/**",
   ]),
 ]);
 

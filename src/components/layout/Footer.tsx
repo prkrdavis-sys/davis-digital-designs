@@ -3,18 +3,19 @@
 import { CATEGORIES, SHOP } from "@/lib/categories";
 import { TransitionLink } from "@/components/layout/TransitionLink";
 import { Button } from "@/components/ui/Button";
+import { CREDITS } from "@/lib/credits";
 
 const WORDS = ["Sites", "Apps", "Play", "Create", "Templates", "Motion", "Brand", "Story"];
 
 export function Footer() {
   return (
-    <footer className="relative z-10 mt-32 overflow-hidden">
+    <footer data-chapter="outro" className="relative z-10 mt-32 overflow-hidden">
       <div className="pointer-events-none select-none overflow-hidden border-y border-[var(--line)] py-6">
         <div className="marquee flex w-max gap-10 whitespace-nowrap font-display text-4xl font-bold tracking-tight text-[var(--ink-mute)] md:text-6xl">
           {[...WORDS, ...WORDS].map((w, i) => (
             <span key={i} className="flex items-center gap-10">
               {w}
-              <span className="season-gradient inline-block h-4 w-4 rounded-full" />
+              <span className="world-gradient inline-block h-4 w-4 rounded-full" />
             </span>
           ))}
         </div>
@@ -23,7 +24,7 @@ export function Footer() {
       <div className="mx-auto grid max-w-6xl gap-12 px-6 py-20 md:grid-cols-[1.4fr_1fr_1fr]">
         <div>
           <p className="font-display text-3xl font-bold tracking-tight md:text-5xl">
-            Got an idea that deserves <span className="season-text">a little pizazz?</span>
+            Got an idea that deserves <span className="world-text">a little pizazz?</span>
           </p>
           <div className="mt-8">
             <Button href="/contact" size="lg">
@@ -69,10 +70,26 @@ export function Footer() {
         </div>
       </div>
 
-      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 pb-10 text-sm text-[var(--ink-mute)]">
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 pb-6 text-sm text-[var(--ink-mute)]">
         <span>© {new Date().getFullYear()} Davis Digital Designs. Made with far too many particles.</span>
-        <span>Built with Next.js, React Three Fiber, and GSAP.</span>
+        <span>Built with Next.js, React Three Fiber, GSAP, and Blender.</span>
       </div>
+      <details className="group mx-auto max-w-6xl px-6 pb-10 text-xs text-[var(--ink-mute)]">
+        <summary className="font-display inline-flex cursor-pointer list-none items-center gap-2 font-bold uppercase tracking-widest [&::-webkit-details-marker]:hidden">
+          Credits for the 3D worlds
+          <span className="transition-transform group-open:rotate-45">+</span>
+        </summary>
+        <ul className="mt-4 grid gap-2 md:grid-cols-2">
+          {CREDITS.map((c) => (
+            <li key={c.source}>
+              <a href={c.href} target="_blank" rel="noreferrer" className="font-bold text-[var(--ink-soft)] hover:text-[var(--accent)]">
+                {c.source}
+              </a>{" "}
+              ({c.license}): {c.what}. {c.notice}
+            </li>
+          ))}
+        </ul>
+      </details>
     </footer>
   );
 }

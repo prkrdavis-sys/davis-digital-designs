@@ -11,7 +11,7 @@ const KONAMI = ["ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown", "ArrowLeft", "Ar
 /**
  * Hidden things.
  * 1. Konami code (↑ ↑ ↓ ↓ ← → ← → B A) opens the firefly-catching mini game.
- * 2. Clicking the logo five times shuffles the season (lives in Nav).
+ * 2. Clicking the logo five times borrows another world's cursor (lives in Nav).
  */
 export function EasterEggs() {
   const gameOpen = useUi((s) => s.gameOpen);

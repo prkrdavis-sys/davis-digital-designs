@@ -63,7 +63,7 @@ export function Vine({ target }: Props) {
       preserveAspectRatio="none"
     >
       <path ref={path} d={PATH} fill="none" stroke="var(--leaf)" strokeWidth="3" strokeLinecap="round" />
-      <g ref={leaves} fill="var(--season-a)">
+      <g ref={leaves} fill="var(--world-a)">
         {LEAVES.map((y, i) => (
           <path
             key={y}

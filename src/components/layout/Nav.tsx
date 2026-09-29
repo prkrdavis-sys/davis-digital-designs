@@ -4,8 +4,10 @@ import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import { CATEGORIES, SHOP } from "@/lib/categories";
-import { nextSeason, SEASON_THEMES } from "@/lib/seasons";
-import { useActiveSeason, useUi } from "@/lib/store";
+import { useUi } from "@/lib/store";
+import { SCENE_IDS } from "@/worlds/types";
+import { SCENE_INFO } from "@/worlds/info";
+import { engine } from "@/components/three/engine/state";
 import { sfx } from "@/lib/sfx";
 import { EASE_CURVE, springy } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -13,6 +15,7 @@ import { TransitionLink } from "@/components/layout/TransitionLink";
 import { Magnetic } from "@/components/fx/Magnetic";
 import { Button } from "@/components/ui/Button";
 import { burstAt } from "@/components/fx/ParticleBurst";
+import { SettingsMenu } from "@/components/layout/SettingsMenu";
 
 const LINKS = [...CATEGORIES.map((c) => ({ href: c.href, label: c.name })), { href: SHOP.href, label: SHOP.name }, { href: "/about", label: "About" }];
 
@@ -85,8 +88,9 @@ export function Nav() {
           <div className="flex items-center gap-1.5">
             <MuteToggle />
             <ThemeToggle />
+            <SettingsMenu />
             <span className="hidden sm:inline-flex">
-              <Button href="/contact" size="sm" variant="season" quiet>
+              <Button href="/contact" size="sm" variant="world" quiet>
                 Hire me
               </Button>
             </span>
@@ -111,7 +115,7 @@ export function Nav() {
             animate={{ clipPath: "circle(150% at 92% 6%)" }}
             exit={{ clipPath: "circle(0% at 92% 6%)" }}
             transition={{ duration: 0.6, ease: EASE_CURVE.inOut }}
-            className="season-gradient fixed inset-0 z-[70] flex flex-col justify-center px-8 md:hidden"
+            className="world-gradient fixed inset-0 z-[70] flex flex-col justify-center px-8 md:hidden"
           >
             <ul className="space-y-2">
               {[...LINKS, { href: "/contact", label: "Contact" }].map((l, i) => (
@@ -148,11 +152,10 @@ export function Nav() {
   );
 }
 
-/** Logo. Click it five times fast and the seasons shuffle (easter egg). */
+/** Logo. Click it five times fast to borrow another world's cursor (easter egg). */
 function Logo({ onShuffle }: { onShuffle: (msg: string) => void }) {
   const clicks = useRef<number[]>([]);
-  const season = useActiveSeason();
-  const setSeasonOverride = useUi((s) => s.setSeasonOverride);
+  const setCursorOverride = useUi((s) => s.setCursorOverride);
 
   const onClick = (e: MouseEvent<HTMLAnchorElement>) => {
     const now = performance.now();
@@ -160,11 +163,12 @@ function Logo({ onShuffle }: { onShuffle: (msg: string) => void }) {
     if (clicks.current.length >= 5) {
       e.preventDefault();
       clicks.current = [];
-      const next = nextSeason(season);
-      setSeasonOverride(next);
+      const current = useUi.getState().cursorOverride ?? engine.primaryScene ?? "garden";
+      const next = SCENE_IDS[(SCENE_IDS.indexOf(current) + 1) % SCENE_IDS.length];
+      setCursorOverride(next);
       burstAt(e.clientX, e.clientY, 28);
       sfx.success();
-      onShuffle(`${SEASON_THEMES[next].label} mode: ${SEASON_THEMES[next].tagline}`);
+      onShuffle(`Cursor swap: ${SCENE_INFO[next].cursor} from the ${SCENE_INFO[next].label.toLowerCase()}`);
     }
   };
 
@@ -173,7 +177,7 @@ function Logo({ onShuffle }: { onShuffle: (msg: string) => void }) {
       <TransitionLink href="/" onClick={onClick} className="group flex items-center gap-2 rounded-full pl-1 pr-3" data-sfx="silent" aria-label="Davis Digital Designs home">
         <span className="relative grid h-9 w-9 place-items-center">
           <motion.span
-            className="season-gradient absolute inset-0 rounded-[40%_60%_55%_45%/55%_45%_55%_45%]"
+            className="world-gradient absolute inset-0 rounded-[40%_60%_55%_45%/55%_45%_55%_45%]"
             animate={{ rotate: 360 }}
             transition={{ duration: 18, repeat: Infinity, ease: "linear" }}
           />

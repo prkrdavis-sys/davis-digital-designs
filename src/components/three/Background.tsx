@@ -3,21 +3,24 @@
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { useUi } from "@/lib/store";
+import { PosterBackdrop } from "@/components/three/PosterBackdrop";
 
 const Canvas3D = dynamic(() => import("@/components/three/Canvas3D"), { ssr: false });
 
 function supportsWebGL(): boolean {
   try {
     const c = document.createElement("canvas");
-    return Boolean(c.getContext("webgl2") || c.getContext("webgl"));
+    return Boolean(c.getContext("webgl2"));
   } catch {
     return false;
   }
 }
 
 /**
- * Chooses between the live 3D world and a calm CSS gradient fallback
- * (no WebGL, or the visitor prefers reduced motion).
+ * The world behind every page, bottom to top: a gradient in the world's colors
+ * (instant skeleton), Cycles poster stills for the current chapter (loading
+ * state and the reduced-motion / no-WebGL experience), then the live canvas,
+ * which fades in once its scene has compiled.
  */
 export function Background() {
   const reducedMotion = useUi((s) => s.reducedMotion);
@@ -32,22 +35,17 @@ export function Background() {
 
   return (
     <>
-      {/* Gradient sits underneath at all times: it is the loading skeleton and the fallback. */}
-      <div
-        aria-hidden
-        className="season-gradient fixed inset-0 -z-10 transition-opacity duration-1000"
-        style={{ opacity: live ? 0.35 : 1 }}
-      />
-      <div
-        aria-hidden
-        className="fixed inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,0.55),transparent_60%)] dark:bg-none"
-        style={{ opacity: live ? 0 : 1 }}
-      />
+      <div aria-hidden className="world-gradient fixed inset-0 -z-10 opacity-60 dark:opacity-25" />
+      {webgl !== null && <PosterBackdrop live={live} />}
       {live && <Canvas3D />}
-      {/* Soft wash so text stays readable over the scene. */}
+      {/* Legibility: worlds frame their subject right of centre, so a soft scrim sits behind the left text column; narrow screens get an even veil instead. */}
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-0 z-[1] bg-[linear-gradient(to_bottom,transparent_0%,color-mix(in_oklab,var(--bg)_55%,transparent)_100%)]"
+        className="pointer-events-none fixed inset-0 z-[1] bg-[color-mix(in_oklab,var(--bg)_24%,transparent)] md:bg-[linear-gradient(90deg,color-mix(in_oklab,var(--bg)_40%,transparent)_0%,color-mix(in_oklab,var(--bg)_16%,transparent)_36%,transparent_58%)]"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 z-[1] bg-[linear-gradient(to_bottom,transparent_60%,color-mix(in_oklab,var(--bg)_35%,transparent)_100%)]"
       />
     </>
   );

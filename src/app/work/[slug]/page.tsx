@@ -4,8 +4,7 @@ import { MDXRemote } from "next-mdx-remote/rsc";
 import { getAdjacentProjects, getAllProjects, getProject } from "@/lib/content";
 import { getCategory } from "@/lib/categories";
 import { ProjectArticle } from "@/components/work/ProjectArticle";
-import { SeasonAmbience } from "@/components/work/SeasonAmbience";
-import { SetSeason } from "@/components/layout/SetSeason";
+import { SetWorld } from "@/components/layout/SetWorld";
 
 export function generateStaticParams() {
   return getAllProjects().map((p) => ({ slug: p.slug }));
@@ -34,12 +33,7 @@ export default async function ProjectPage({ params }: PageProps<"/work/[slug]">)
 
   return (
     <>
-      {category && (
-        <>
-          <SetSeason season={category.season} />
-          <SeasonAmbience season={category.season} />
-        </>
-      )}
+      {category && <SetWorld world={category.world} parked cover={project.cover} />}
       <ProjectArticle project={project} prev={prev} next={next} body={<MDXRemote source={project.body} />} />
     </>
   );

@@ -7,7 +7,7 @@ import { burstAt } from "@/components/fx/ParticleBurst";
 import { TransitionLink } from "@/components/layout/TransitionLink";
 import { cn } from "@/lib/utils";
 
-type Variant = "primary" | "secondary" | "ghost" | "season";
+type Variant = "primary" | "secondary" | "ghost" | "world";
 type Size = "sm" | "md" | "lg";
 
 interface BaseProps {
@@ -24,13 +24,13 @@ type ButtonProps = BaseProps & ButtonHTMLAttributes<HTMLButtonElement> & { href?
 type LinkProps = BaseProps & { href: string; target?: string; rel?: string; onClick?: (e: MouseEvent<HTMLAnchorElement>) => void };
 
 const base =
-  "group relative isolate inline-flex items-center justify-center gap-2 overflow-hidden rounded-full font-display font-bold tracking-tight select-none transition-[transform,box-shadow] duration-300 ease-[var(--ease-bounce)] active:scale-95 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--season-a)]/50";
+  "group relative isolate inline-flex items-center justify-center gap-2 overflow-hidden rounded-full font-display font-bold tracking-tight select-none transition-[transform,box-shadow] duration-300 ease-[var(--ease-bounce)] active:scale-95 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--world-a)]/50";
 
 const variants: Record<Variant, string> = {
   primary: "bg-[var(--ink)] text-[var(--bg)] shadow-[var(--shadow-soft)] hover:shadow-[var(--shadow-pop)] hover:-translate-y-0.5",
   secondary: "bg-[var(--bg-elev)] text-[var(--ink)] border border-[var(--line)] hover:border-[var(--ink)]",
   ghost: "bg-transparent text-[var(--ink)] hover:bg-[color-mix(in_oklab,var(--ink)_8%,transparent)]",
-  season: "season-gradient text-[#1b2a22] shadow-[var(--shadow-soft)] hover:shadow-[var(--shadow-pop)] hover:-translate-y-0.5",
+  world: "world-gradient text-[#1b2a22] shadow-[var(--shadow-soft)] hover:shadow-[var(--shadow-pop)] hover:-translate-y-0.5",
 };
 
 const sizes: Record<Size, string> = {
@@ -52,7 +52,7 @@ function Fill() {
   return (
     <span
       aria-hidden
-      className="pointer-events-none absolute inset-0 -z-10 translate-y-full rounded-full bg-[var(--season-a)] opacity-0 transition-[transform,opacity] duration-500 ease-[var(--ease-out)] group-hover:translate-y-0 group-hover:opacity-100"
+      className="pointer-events-none absolute inset-0 -z-10 translate-y-full rounded-full bg-[var(--world-a)] opacity-0 transition-[transform,opacity] duration-500 ease-[var(--ease-out)] group-hover:translate-y-0 group-hover:opacity-100"
       style={{ mixBlendMode: "multiply" }}
     />
   );

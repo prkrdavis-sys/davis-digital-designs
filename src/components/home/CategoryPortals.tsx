@@ -4,21 +4,22 @@ import { useRef, type MouseEvent } from "react";
 import { gsap } from "gsap";
 import { motion } from "motion/react";
 import { CATEGORIES, SHOP, type Category } from "@/lib/categories";
-import { SEASON_THEMES } from "@/lib/seasons";
+import { WORLDS } from "@/lib/worlds";
 import { useUi } from "@/lib/store";
 import { EASE_CURVE } from "@/lib/motion";
 import { TransitionLink } from "@/components/layout/TransitionLink";
 import { SplitHeading } from "@/components/ui/SplitHeading";
 import { Reveal } from "@/components/ui/Reveal";
 import { cn } from "@/lib/utils";
+import { homeState } from "@/components/three/engine/state";
 
-type Portal = Pick<Category, "name" | "hook" | "season" | "emoji"> & { href: string; count?: number };
+type Portal = Pick<Category, "name" | "hook" | "world" | "emoji"> & { href: string; count?: number };
 
 interface Props {
   counts: Record<string, number>;
 }
 
-/** Five oversized portal cards. Tilt in 3D, liquid-fill on hover, peek at the season. */
+/** Five oversized portal cards. Tilt in 3D, liquid-fill on hover, peek at the world behind the door. */
 export function CategoryPortals({ counts }: Props) {
   const portals: Portal[] = [
     ...CATEGORIES.map((c) => ({ ...c, count: counts[c.slug] ?? 0 })),
@@ -26,14 +27,14 @@ export function CategoryPortals({ counts }: Props) {
   ];
 
   return (
-    <section className="relative px-6 py-24 md:px-12">
+    <section data-chapter="doors" className="relative px-6 py-24 md:px-12">
       <div className="mx-auto max-w-6xl">
         <Reveal className="mb-12 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <SplitHeading className="text-[clamp(2.2rem,5vw,4.5rem)] font-bold leading-[0.95] tracking-tight" split="words">
             Pick a door.
           </SplitHeading>
           <p className="max-w-sm text-[var(--ink-soft)]">
-            Each one has its own season. Websites bloom, apps shine, games tumble, content settles like snow.
+            Each one opens onto its own world. Sites grow in a greenhouse, apps live under the microscope, games bounce around a pinball machine, and stories settle inside a snow globe.
           </p>
         </Reveal>
 
@@ -51,7 +52,7 @@ function PortalCard({ portal, index, className }: { portal: Portal; index: numbe
   const card = useRef<HTMLAnchorElement>(null);
   const blob = useRef<HTMLSpanElement>(null);
   const isTouch = useUi((s) => s.isTouch);
-  const theme = SEASON_THEMES[portal.season];
+  const palette = WORLDS[portal.world].palette.day;
 
   const onMove = (e: MouseEvent<HTMLAnchorElement>) => {
     const el = card.current;
@@ -65,6 +66,7 @@ function PortalCard({ portal, index, className }: { portal: Portal; index: numbe
 
   const onLeave = () => {
     if (card.current) gsap.to(card.current, { rotateY: 0, rotateX: 0, duration: 0.9, ease: "elastic.out(1, 0.5)" });
+    if (homeState.hoveredDoor === portal.world) homeState.hoveredDoor = null;
   };
 
   return (
@@ -78,25 +80,29 @@ function PortalCard({ portal, index, className }: { portal: Portal; index: numbe
       <TransitionLink
         ref={card}
         href={portal.href}
+        transition="dive"
         onMouseMove={onMove}
+        onMouseEnter={() => (homeState.hoveredDoor = portal.world)}
         onMouseLeave={onLeave}
+        onClick={() => (homeState.enteredDoor = portal.world)}
         data-cursor="Enter"
         className="group relative block h-full min-h-[260px] overflow-hidden rounded-[var(--radius-card)] border border-[var(--line)] bg-[var(--bg-elev)] p-7 shadow-[var(--shadow-soft)] transition-shadow duration-500 will-change-transform [transform-style:preserve-3d] hover:shadow-[var(--shadow-pop)]"
-        style={{ ["--season-a" as string]: theme.particle[0], ["--season-b" as string]: theme.sky.high, ["--season-c" as string]: theme.terrain.top }}
+        data-door={portal.world}
+        style={{ ["--world-a" as string]: palette[0], ["--world-b" as string]: palette[1], ["--world-c" as string]: palette[2] }}
       >
         {/* Liquid fill blob follows the cursor and swells on hover. */}
         <span
           ref={blob}
           aria-hidden
-          className="season-gradient pointer-events-none absolute left-1/2 top-1/2 h-16 w-16 -translate-x-1/2 -translate-y-1/2 rounded-full opacity-0 blur-2xl transition-[opacity,transform] duration-700 ease-[var(--ease-out)] group-hover:scale-[9] group-hover:opacity-90"
+          className="world-gradient pointer-events-none absolute left-1/2 top-1/2 h-16 w-16 -translate-x-1/2 -translate-y-1/2 rounded-full opacity-0 blur-2xl transition-[opacity,transform] duration-700 ease-[var(--ease-out)] group-hover:scale-[9] group-hover:opacity-90"
         />
-        {/* Season peek: little drifting bits. */}
+        {/* World peek: little drifting bits in the world's colors. */}
         <span aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
           {Array.from({ length: 7 }, (_, i) => (
             <motion.span
               key={i}
               className="absolute block rounded-[60%_40%_55%_45%/50%_60%_40%_50%] opacity-0 group-hover:opacity-80"
-              style={{ left: `${10 + i * 12}%`, width: 10 + (i % 3) * 6, height: 8 + (i % 3) * 4, background: theme.particle[i % theme.particle.length] }}
+              style={{ left: `${10 + i * 12}%`, width: 10 + (i % 3) * 6, height: 8 + (i % 3) * 4, background: palette[i % palette.length] }}
               animate={{ y: ["-20%", "420%"], rotate: [0, 260], x: [0, (i % 2 ? 1 : -1) * 20, 0] }}
               transition={{ duration: 5 + i * 0.7, repeat: Infinity, ease: "linear", delay: i * 0.4 }}
             />

@@ -47,7 +47,7 @@ export function ContactForm({ defaultSubject = "" }: Props) {
             className="py-16 text-center"
           >
             <motion.span
-              className="season-gradient mx-auto grid h-24 w-24 place-items-center rounded-full text-5xl"
+              className="world-gradient mx-auto grid h-24 w-24 place-items-center rounded-full text-5xl"
               animate={{ rotate: [0, -10, 10, 0], scale: [1, 1.1, 1] }}
               transition={{ duration: 1.2, repeat: Infinity, repeatDelay: 1.5 }}
             >
@@ -87,7 +87,7 @@ export function ContactForm({ defaultSubject = "" }: Props) {
                       budget === b ? "text-[#1b2a22]" : "border border-[var(--line)] hover:border-[var(--ink)]",
                     )}
                   >
-                    {budget === b && <motion.span layoutId="budget-pill" className="season-gradient absolute inset-0 -z-10 rounded-full" transition={springy} />}
+                    {budget === b && <motion.span layoutId="budget-pill" className="world-gradient absolute inset-0 -z-10 rounded-full" transition={springy} />}
                     <span className="relative">{b}</span>
                   </button>
                 ))}
@@ -113,7 +113,7 @@ export function ContactForm({ defaultSubject = "" }: Props) {
                   hello@davisdigitaldesigns.com
                 </a>
               </p>
-              <Button type="submit" size="lg" variant="season" disabled={pending} className={cn(pending && "opacity-70")}>
+              <Button type="submit" size="lg" variant="world" disabled={pending} className={cn(pending && "opacity-70")}>
                 {pending ? "Sending…" : "Send it"}
               </Button>
             </div>
@@ -137,7 +137,7 @@ interface FieldProps {
 
 function Field({ label, name, type = "text", error, placeholder, textarea, autoComplete, defaultValue }: FieldProps) {
   const cls = cn(
-    "peer w-full rounded-2xl border bg-[var(--bg)] px-4 py-3.5 text-base outline-none transition-all duration-300 placeholder:text-[var(--ink-mute)] focus:-translate-y-0.5 focus:shadow-[var(--shadow-soft)] focus:ring-4 focus:ring-[var(--season-a)]/40",
+    "peer w-full rounded-2xl border bg-[var(--bg)] px-4 py-3.5 text-base outline-none transition-all duration-300 placeholder:text-[var(--ink-mute)] focus:-translate-y-0.5 focus:shadow-[var(--shadow-soft)] focus:ring-4 focus:ring-[var(--world-a)]/40",
     error ? "border-[var(--petal)]" : "border-[var(--line)] focus:border-[var(--ink)]",
   );
   return (

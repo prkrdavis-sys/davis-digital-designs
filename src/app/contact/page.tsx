@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { PageHero } from "@/components/work/PageHero";
 import { ContactForm } from "@/components/contact/ContactForm";
-import { SeasonAmbience } from "@/components/work/SeasonAmbience";
 import { Reveal } from "@/components/ui/Reveal";
 
 export const metadata: Metadata = {
@@ -21,9 +20,8 @@ export default async function ContactPage({ searchParams }: PageProps<"/contact"
 
   return (
     <>
-      <SeasonAmbience season="golden" />
-      <PageHero eyebrow="🌅 Say hello" title="Let's talk." blurb="Tell me what you're making. I'll tell you how I'd build it, what it would cost, and when you'd have it." />
-      <section className="px-6 pb-24 md:px-12">
+      <PageHero eyebrow="✈️ Say hello" title="Let's talk." blurb="Tell me what you're making. I'll tell you how I'd build it, what it would cost, and when you'd have it." />
+      <section data-chapter="form" className="px-6 pb-24 md:px-12">
         <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[1fr_360px]">
           <ContactForm defaultSubject={subject} />
           <aside className="space-y-4">
