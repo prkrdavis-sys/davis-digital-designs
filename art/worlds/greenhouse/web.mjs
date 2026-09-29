@@ -30,8 +30,9 @@ async function webp(src, dst, { width, quality = 82, median = 0 } = {}) {
 const jobs = {
   async lightmaps() {
     for (const v of ["day", "night"]) {
-      for (const k of ["iron", "masonry"]) await webp(join(OUT, "lightmaps", `${k}-${v}.png`), join(HI, `lm-${k}-${v}.webp`), { quality: 86, median: 3 });
-      await webp(join(OUT, "lightmaps", `floor-${v}.png`), join(HI, `lm-floor-${v}.webp`), { quality: 88, median: 3 });
+      // Bakes are already denoised (OIDN in build.py); a median here would smear across atlas islands.
+      for (const k of ["iron", "masonry"]) await webp(join(OUT, "lightmaps", `${k}-${v}.png`), join(HI, `lm-${k}-${v}.webp`), { quality: 86 });
+      await webp(join(OUT, "lightmaps", `floor-${v}.png`), join(HI, `lm-floor-${v}.webp`), { quality: 88 });
     }
   },
   async sky() {

@@ -30,9 +30,10 @@ from mathutils import Matrix, Vector  # noqa: E402
 import gh_mat as gm  # noqa: E402
 import gh_model as model  # noqa: E402
 import gh_plants as plants  # noqa: E402
+import oidn  # noqa: E402
 from ddd import bake, cli, export, geo, mat, rails, render, scene  # noqa: E402
 from ddd.cli import CACHE  # noqa: E402
-from mesh import MeshBuilder  # noqa: E402
+from mesh import MeshBuilder, pack_atlas  # noqa: E402
 
 SCENE_ID = "greenhouse"
 V = Vector
@@ -182,9 +183,9 @@ KEYS = [
     (2.30, (0.6, -6.8, 2.7), (-0.9, 1.0, 6.6), 52),
     (2.65, (1.4, -4.2, 4.8), (-0.6, 1.5, 11.0), 54),
     (3.00, (1.6, -2.5, 7.4), (-0.8, 1.2, 14.0), 56),
-    (3.35, (0.9, -0.4, 9.2), (3.6, 5.0, 12.6), 50),
-    (3.70, (1.3, 1.6, 10.2), (3.4, 8.2, 11.6), 46),
-    (4.20, (1.75, 2.75, 10.8), (2.9, 9.0, 11.7), 44),
+    (3.35, (0.6, -2.0, 8.6), (2.6, 5.5, 11.2), 50),
+    (3.70, (-0.5, -2.8, 9.3), (2.5, 7.4, 10.0), 46),
+    (4.20, (-1.4, -3.6, 9.4), (2.3, 7.6, 8.9), 44),
     # Parked: a bench under the dome.
     (4.45, (1.0, -2.4, 1.5), (5.0, 1.25, 0.95), 42),
     (4.90, (1.35, -2.0, 1.45), (5.0, 1.45, 0.9), 42),
@@ -226,17 +227,29 @@ def materials(variant):
     return MATS
 
 
-def build_static(variant, P=None):
-    """Architecture objects by (group, chunk). Returns (P, {group: [objs]}, objs by chunk)."""
-    P = P or model.build_all()
+SMOOTH = {"iron": 80, "wire": 180}
+
+
+def build_static(variant, pack=None):
+    """Architecture objects by (group, chunk). Returns (P, {group: [objs]}, objs by chunk, foliage builders).
+
+    pack = {group: atlas px} shelf-packs those groups' lightmap UVs first (P.density: texels per meter).
+    """
+    P = model.build_all()
     fol = plants.build_foliage(P)
     materials(variant)
-    groups = {"iron": [], "masonry": [], "glass": [], "floor": []}
+    MATS["wire"] = MATS["iron"]
+    P.density = {}
+    for key, size in (pack or {}).items():
+        builders = [mb for (g, _), mb in sorted(P.mb.items()) if g == key and mb.f]
+        P.density[key] = pack_atlas(builders, size, margin=2)
+        cli.log("atlas", key, f"{size}px", f"{P.density[key]:.1f} texels/m", pack_atlas.last["islands"], "islands", f"content {pack_atlas.last['fill'] * 100:.0f}%")
+    groups = {"iron": [], "masonry": [], "glass": [], "floor": [], "wire": []}
     chunks = {}
     for (group, chunk), mb in sorted(P.mb.items()):
         if not mb.f:
             continue
-        o = mb.build(f"{group}_{chunk}", MATS[group], color_attr=(group == "glass"), smooth_angle=35 if group == "iron" else None)
+        o = mb.build(f"{group}_{chunk}", MATS[group], color_attr=(group == "glass"), smooth_angle=SMOOTH.get(group))
         groups[group].append(o)
         chunks.setdefault(chunk, []).append(o)
     if variant is not None:
@@ -273,44 +286,11 @@ def floor_uv(o, bounds):
 
 
 FLOOR_LM = (1024, 2048)
-LM_EXPOSURE = -2.0  # irradiance stored at 1/4 so sunlit patches keep their range in 8-bit
+ATLAS = {"iron": 2048, "masonry": 2048}
+LM_JSON = "lightmaps.json"
 
 
-def bake_irradiance(obj, uv_name, path, size, samples):
-    """Lighting-only (no albedo) bake: the runtime multiplies its own tiled floor texture."""
-    sc = bpy.context.scene
-    img = bpy.data.images.new(f"{obj.name}_irr", size[0], size[1], alpha=False, float_buffer=True)
-    for m in obj.data.materials:
-        nt = m.node_tree
-        tex = nt.nodes.new("ShaderNodeTexImage")
-        tex.image = img
-        uvn = nt.nodes.new("ShaderNodeUVMap")
-        uvn.uv_map = uv_name
-        nt.links.new(uvn.outputs[0], tex.inputs["Vector"])
-        for n in nt.nodes:
-            n.select = False
-        tex.select = True
-        nt.nodes.active = tex
-    sc.cycles.samples = samples
-    sc.render.bake.margin = 8
-    for o in sc.objects:
-        o.select_set(False)
-    obj.select_set(True)
-    bpy.context.view_layer.objects.active = obj
-    cli.log("baking irradiance", obj.name, size, samples)
-    bpy.ops.object.bake(type="DIFFUSE", pass_filter={"DIRECT", "INDIRECT"}, margin=8, use_clear=True)
-    bake.save_srgb(img, path, exposure=LM_EXPOSURE)
-    for m in obj.data.materials:
-        nt = m.node_tree
-        for n in [n for n in nt.nodes if n.type in ("TEX_IMAGE", "UVMAP") and getattr(n, "image", None) is img or (n.type == "UVMAP" and n.uv_map == uv_name)]:
-            nt.nodes.remove(n)
-    return path
-
-
-def bake_combined(obj, uv_name, path, size, samples):
-    """Same pass as ddd.bake.bake_group, into an existing atlas UV so day and night share geometry."""
-    sc = bpy.context.scene
-    img = bpy.data.images.new(f"{obj.name}_gi", size, size, alpha=False, float_buffer=True)
+def _bake_target(obj, uv_name, img):
     nodes = []
     for m in obj.data.materials:
         nt = m.node_tree
@@ -324,18 +304,66 @@ def bake_combined(obj, uv_name, path, size, samples):
         tex.select = True
         nt.nodes.active = tex
         nodes.append((nt, tex, uvn))
+    return nodes
+
+
+def _bake(obj, uv_name, size, samples, margin, **kw):
+    """One Cycles bake of `obj` into a new float image; returns pixels as (H, W, 3) float32."""
+    sc = bpy.context.scene
+    w, h = size
+    img = bpy.data.images.new(f"{obj.name}_{kw['type']}", w, h, alpha=False, float_buffer=True)
+    nodes = _bake_target(obj, uv_name, img)
     sc.cycles.samples = samples
+    sc.render.bake.margin = margin
     for o in sc.objects:
         o.select_set(False)
     obj.select_set(True)
     bpy.context.view_layer.objects.active = obj
-    cli.log("baking GI", obj.name, size, samples)
-    bpy.ops.object.bake(type="COMBINED", pass_filter={"EMIT", "DIRECT", "INDIRECT", "DIFFUSE"}, margin=12, use_clear=True)
-    bake.save_srgb(img, path, exposure=-1.0)
+    bpy.ops.object.bake(margin=margin, use_clear=True, **kw)
+    px = np.array(img.pixels[:], dtype=np.float32).reshape(h, w, 4)[..., :3].copy()
     for nt, tex, uvn in nodes:
         nt.nodes.remove(tex)
         nt.nodes.remove(uvn)
-    return path
+    bpy.data.images.remove(img)
+    return px
+
+
+def _save(px, path, target=0.9, pct=99.7, lo=-4.0, hi=2.0):
+    """8-bit sRGB PNG with an exposure (power of two, quarter stops) that keeps the bright end."""
+    lum = px @ np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)
+    lit = lum[lum > 1e-5]
+    top = float(np.percentile(lit, pct)) if lit.size else 1.0
+    exposure = float(np.clip(math.floor(math.log2(target / max(top, 1e-6)) * 4) / 4, lo, hi))
+    h, w = px.shape[:2]
+    img = bpy.data.images.new(path.stem, w, h, alpha=False, float_buffer=True)
+    rgba = np.concatenate([px, np.ones((h, w, 1), np.float32)], -1)
+    img.pixels.foreach_set(rgba.ravel())
+    bake.save_srgb(img, path, exposure=exposure)
+    bpy.data.images.remove(img)
+    cli.log("lightmap", path.name, f"p{pct} {top:.3f}", "exposure", exposure)
+    return exposure
+
+
+def bake_gi(obj, uv_name, path, size, samples, aux):
+    """Diffuse GI with albedo (ddd.bake.bake_group's pass) into a shared atlas UV, denoised."""
+    cli.log("baking GI", obj.name, size, samples)
+    col = _bake(obj, uv_name, size, samples, 16, type="COMBINED", pass_filter={"EMIT", "DIRECT", "INDIRECT", "DIFFUSE"})
+    col = oidn.denoise(col, aux["albedo"], aux["normal"])
+    return _save(np.maximum(col, 0), path)
+
+
+def bake_irradiance(obj, uv_name, path, size, samples):
+    """Lighting-only (no albedo) bake: the runtime multiplies its own tiled floor texture."""
+    cli.log("baking irradiance", obj.name, size, samples)
+    irr = _bake(obj, uv_name, size, samples, 8, type="DIFFUSE", pass_filter={"DIRECT", "INDIRECT"})
+    irr = oidn.denoise(irr, np.ones_like(irr))
+    return _save(np.maximum(irr, 0), path)
+
+
+def bake_aux(obj, uv_name, size):
+    albedo = _bake(obj, uv_name, size, 4, 16, type="DIFFUSE", pass_filter={"COLOR"})
+    normal = _bake(obj, uv_name, size, 1, 16, type="NORMAL", normal_space="OBJECT")
+    return {"albedo": np.clip(albedo, 0, 1), "normal": normal * 2.0 - 1.0}
 
 
 def lights_for(variant, P, lantern_inst):
@@ -346,55 +374,88 @@ def lights_for(variant, P, lantern_inst):
         night_lights(P, lantern_inst)
 
 
+def _one_slot(o, m):
+    o.data.materials.clear()
+    o.data.materials.append(m)
+    o.data.polygons.foreach_set("material_index", np.zeros(len(o.data.polygons), dtype=np.int32))
+
+
 def step_bake():
     scene.reset()
     plants.reset()
     scene.cycles(samples=64, bounces=6, res=(1920, 1200))
-    P, groups, chunks, fol = build_static("day")
+    size = 1024 if args.preview else 2048
+    P, groups, chunks, fol = build_static("day", pack={k: (size if args.preview else v) for k, v in ATLAS.items()})
     inst, lanterns = plants.place_scans(P)
     # Plants cast shadows and bounce light into the bake but are not part of it.
     live = plants.link_instances(inst) + build_foliage_objects(fol) + plants.link_instances(lanterns)
     for g in groups["glass"]:
         g.visible_shadow = True
     joined = {}
-    for key in ("iron", "masonry", "glass"):
+    for key in ("iron", "masonry", "glass", "wire"):
         objs = groups[key]
         joined[key] = geo.join(objs, key) if len(objs) > 1 else objs[0]
         joined[key].name = key
     floor = groups["floor"][0]
     floor.name = "floor"
     uvf = floor_uv(floor, P.floor_bounds)
-    for key in ("iron", "masonry"):
-        bake.unwrap_atlas(joined[key], angle_deg=60, margin=0.002)
+    # Metals bake black in a diffuse pass: gilt bakes as diffuse gold, and gets its sheen back at runtime.
+    iron_mats = joined["iron"].data.materials
+    for i, m in enumerate(iron_mats):
+        if m is not None and m.name.startswith("gilt"):
+            iron_mats[i] = mat.principled("gilt_bake", base=gm.lin("#d2a864"), rough=0.5)
     lm = OUT / "lightmaps"
     lm.mkdir(parents=True, exist_ok=True)
-    samples = args.samples or (96 if args.preview else 320)
-    size = 1024 if args.preview else 2048
+    samples = args.samples or (32 if args.preview else 96)
+    floor_size = FLOOR_LM if not args.preview else (512, 1024)
+    aux = {k: bake_aux(joined[k], "bake", (size, size)) for k in ("iron", "masonry")}
+    info_path = lm / LM_JSON
+    info = json.loads(info_path.read_text()) if info_path.exists() else {}
     for variant in args.variants:
         lights_for(variant, P, lanterns)
         b = mat.bsdf_of(MATS["bulb"])
         b.inputs["Emission Color"].default_value = (*gm.lin("#ffc27a"), 1)
         b.inputs["Emission Strength"].default_value = 40.0 if variant == "night" else 0.0
-        bake_combined(joined["iron"], "bake", lm / f"iron-{variant}.png", size, samples)
-        bake_combined(joined["masonry"], "bake", lm / f"masonry-{variant}.png", size, samples)
-        bake_irradiance(floor, uvf.name, lm / f"floor-{variant}.png", FLOOR_LM if not args.preview else (512, 1024), samples)
-    # Export geometry only: runtime materials read the lightmaps.
-    for key in ("iron", "masonry", "glass", "floor"):
-        o = joined.get(key, floor)
-        o.data.materials.clear()
-        o.data.materials.append(mat.principled(f"{key}_runtime", base=(1, 1, 1), rough=0.5))
-        keep = {"bake"} if key != "glass" else set()
+        info[variant] = {
+            "iron": bake_gi(joined["iron"], "bake", lm / f"iron-{variant}.png", (size, size), samples, aux["iron"]),
+            "masonry": bake_gi(joined["masonry"], "bake", lm / f"masonry-{variant}.png", (size, size), samples, aux["masonry"]),
+            "floor": bake_irradiance(floor, uvf.name, lm / f"floor-{variant}.png", floor_size, samples),
+        }
+        info_path.write_text(json.dumps(info, indent=1))
+        _write_lm_meta(info)
+    # Export geometry only: runtime materials read the lightmaps (and find parts by material name).
+    rt = {"lm_paint": mat.principled("lm_paint", base=(1, 1, 1), rough=0.4), "lm_gilt": mat.principled("lm_gilt", base=(1, 1, 1), rough=0.3)}
+    for i, m in enumerate(joined["iron"].data.materials):
+        iron_mats[i] = rt["lm_gilt" if m is not None and m.name.startswith("gilt") else "lm_paint"]
+    _one_slot(joined["masonry"], mat.principled("lm_masonry", base=(1, 1, 1), rough=0.8))
+    _one_slot(joined["wire"], mat.principled("rt_wire", base=(0.02, 0.02, 0.02), rough=0.5))
+    _one_slot(joined["glass"], mat.principled("rt_glass", base=(1, 1, 1), rough=0.05))
+    _one_slot(floor, mat.principled("rt_floor", base=(1, 1, 1), rough=0.5))
+    for key, o in (*joined.items(), ("floor", floor)):
+        keep = {"bake"} if key in ("iron", "masonry") else set()
         for layer in list(o.data.uv_layers):
             if layer.name not in keep:
                 o.data.uv_layers.remove(layer)
         if key == "glass":
             o.data.color_attributes.active_color = o.data.color_attributes["Col"]
+        else:
+            for ca in list(o.data.color_attributes):
+                o.data.color_attributes.remove(ca)
     for o in live:
         o.hide_set(True)
-    export.glb(OUT / "arch.glb", [joined["iron"], joined["masonry"], joined["glass"], floor], export_vertex_color="ACTIVE")
-    for key in ("iron", "masonry", "glass", "floor"):
-        o = joined.get(key, floor)
-        cli.log("arch", key, geo.triangle_count(o), "tris")
+    export.glb(OUT / "arch.glb", [joined["iron"], joined["masonry"], joined["glass"], joined["wire"], floor], export_vertex_color="ACTIVE")
+    for key, o in (*joined.items(), ("floor", floor)):
+        cli.log("arch", key, geo.triangle_count(o), "tris", len(o.data.vertices), "verts")
+
+
+def _write_lm_meta(info):
+    """Lightmap exposures go into greenhouse.json (the meta step keeps them)."""
+    path = PUB / "hi" / "greenhouse.json"
+    if not path.exists():
+        return
+    meta = json.loads(path.read_text())
+    meta["lm"] = {v: info[v] for v in ("day", "night") if v in info}
+    path.write_text(json.dumps(meta, separators=(",", ":")))
 
 
 # --------------------------------------------------------------------------
@@ -415,8 +476,25 @@ def pack_rgba(diff_path, alpha_path, out_path):
     return img
 
 
+SMALL_TEX = ("Lantern", "_pot", "bark")  # small on screen: 512 px is plenty
+
+
 def runtime_material(src_mat, tex_dir):
     """Principled with a packed RGBA base color (alpha mask) for glTF, from a Poly Haven material."""
+    img = _runtime_material(src_mat, tex_dir)
+    t = next((n for n in img.node_tree.nodes if n.type == "TEX_IMAGE"), None)
+    if t is not None and t.image is not None and any(k in src_mat.name for k in SMALL_TEX) and t.image.size[0] > 512:
+        small = t.image.copy()
+        small.scale(512, 512)
+        path = tex_dir / f"{src_mat.name}_512.png"
+        small.filepath_raw = str(path)
+        small.file_format = "PNG"
+        small.save()
+        t.image = bpy.data.images.load(str(path))
+    return img
+
+
+def _runtime_material(src_mat, tex_dir):
     nt = src_mat.node_tree
     bsdf = next((n for n in nt.nodes if n.type == "BSDF_PRINCIPLED"), None)
     diff = alpha = None
@@ -552,7 +630,11 @@ def step_meta():
     inst, lanterns = plants.place_scans(P)
     plants.link_instances(inst)
     build_foliage_objects(fol)
-    meta = {"lightmapExposure": LM_EXPOSURE, "floor": {"bounds": [round(x, 4) for x in P.floor_bounds], "lm": list(FLOOR_LM)}}
+    meta = {"floor": {"bounds": [round(x, 4) for x in P.floor_bounds], "lm": list(FLOOR_LM)}}
+    lm_info = OUT / "lightmaps" / LM_JSON
+    if lm_info.exists():
+        info = json.loads(lm_info.read_text())
+        meta["lm"] = {v: info[v] for v in ("day", "night") if v in info}
     for variant in ("day", "night"):
         info = sky_info(variant)
         meta[variant] = {"lightDir": to_three(info["dir"]), "strength": round(info["strength"], 3), "color": [round(c, 4) for c in info["color"]]}
@@ -689,7 +771,7 @@ def split_bands(cam, st, near_dist):
     for o in candidates:
         dmin, dmax = depth(o)
         (front if dmax < near_dist * 2.2 and dmin < near_dist else back).append(o)
-    back += st["groups"]["floor"] + st["groups"].get("bulbs", [])
+    back += st["groups"]["floor"] + st["groups"]["wire"] + st["groups"].get("bulbs", [])
     if st["haze"] is not None:
         back.append(st["haze"])
     return back, front
@@ -798,7 +880,49 @@ def step_mini():
     export.glb(OUT / "mini.glb", objs)
 
 
+def step_stats():
+    """Triangle counts per group and per model function (to find what to trim)."""
+    import collections
+
+    counts = collections.Counter()
+    orig = MeshBuilder.face
+
+    def face(self, idx, mat=0):
+        f = sys._getframe(1)
+        name = "?"
+        while f is not None:
+            mod = f.f_globals.get("__name__", "")
+            if mod in ("gh_model", "gh_plants") and f.f_code.co_name not in ("bulbs_string",):
+                name = f"{mod}.{f.f_code.co_name}"
+                break
+            f = f.f_back
+        counts[(getattr(self, "_group", "?"), name)] += len(idx) - 2
+        orig(self, idx, mat)
+
+    class Tagged(dict):
+        def __missing__(self, key):
+            mb = MeshBuilder()
+            mb._group = key[0]
+            self[key] = mb
+            return mb
+
+    MeshBuilder.face = face
+    P = model.build_all(Tagged)
+    fol = plants.build_foliage(P)
+    for name, mb in fol.items():
+        counts[("foliage", name)] += mb.tris
+    MeshBuilder.face = orig
+    total = collections.Counter()
+    for (g, n), c in counts.items():
+        total[g] += c
+    for g, c in total.most_common():
+        cli.log("group", g, c)
+    for (g, n), c in counts.most_common(40):
+        cli.log(f"  {g:10s} {n:40s} {c}")
+
+
 STEPS = {
+    "stats": step_stats,
     "bake": step_bake,
     "live": step_live,
     "rail": step_rail,
