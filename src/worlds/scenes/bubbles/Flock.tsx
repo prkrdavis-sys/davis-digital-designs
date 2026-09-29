@@ -66,10 +66,11 @@ export function Flock({ variant, layout }: { variant: Variant; layout: BubblesLa
       const mat = withSquish(bubbleVinyl(color, night), squish);
       disposables.push(mat);
       if (night) {
-        // Lit from within: body glows face-on, a softer halo at the rim.
-        squish.glow.value.set(color);
-        squish.inner.value = 0.55;
-        squish.rim.value = 0.9;
+        // Lit from within: a saturated glow face-on (AgX bleaches plain pastels), a halo at the rim.
+        const g = squish.glow.value.set(color);
+        g.setRGB(g.r ** 1.6, g.g ** 1.6, g.b ** 1.6);
+        squish.inner.value = 0.7;
+        squish.rim.value = 1.6;
       }
       const mesh = new THREE.Mesh(shapes[b.shape], mat);
       const m = new THREE.Matrix4().fromArray(b.matrix);
