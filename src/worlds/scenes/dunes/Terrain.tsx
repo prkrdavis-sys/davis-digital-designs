@@ -21,7 +21,8 @@ const vertex = /* glsl */ `
   void main() {
     vec4 w = modelMatrix * vec4(position, 1.0);
     vWorld = w.xyz;
-    vNormalW = normalize(transpose(inverse(mat3(modelMatrix))) * normal);
+    // Node transforms are rotation + uniform (quantization) scale.
+    vNormalW = normalize(mat3(modelMatrix) * normal);
     gl_Position = projectionMatrix * viewMatrix * w;
   }
 `;

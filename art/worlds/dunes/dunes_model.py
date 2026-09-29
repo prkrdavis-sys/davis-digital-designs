@@ -455,6 +455,69 @@ PROPS = [
 ]
 
 
+def _bilinear(G, u, v):
+    n = G.shape[0]
+    u = np.clip(u, 0, n - 1.001)
+    v = np.clip(v, 0, n - 1.001)
+    j, i = u.astype(np.int32), v.astype(np.int32)
+    fu, fv = u - j, v - i
+    a = G[i, j] * (1 - fu) + G[i, j + 1] * fu
+    b = G[i + 1, j] * (1 - fu) + G[i + 1, j + 1] * fu
+    return a * (1 - fv) + b * fv
+
+
+def with_slabs(H, x0=CORE_X0, y0=CORE_Y0, size=CORE_SIZE):
+    """Height grid (texel centers, row = y) with every slab stamped in as a solid block."""
+    n = H.shape[0]
+    px = size / n
+    G = H.copy()
+    for m in monolith_placements():
+        nrm, tan = monolith_frame(m)
+        c = np.array(m["p"])
+        r = int(math.ceil((m["w"] / 2 + 2) / px))
+        ci, cj = int((c[1] - y0) / px), int((c[0] - x0) / px)
+        i0, i1, j0, j1 = max(0, ci - r), min(n, ci + r + 1), max(0, cj - r), min(n, cj + r + 1)
+        J, I = np.meshgrid(np.arange(j0, j1), np.arange(i0, i1))
+        dx = x0 + (J + 0.5) * px - c[0]
+        dy = y0 + (I + 0.5) * px - c[1]
+        a = dx * nrm[0] + dy * nrm[1]
+        b = dx * tan[0] + dy * tan[1]
+        inside = (np.abs(a) <= m["thickness"] / 2 + px * 0.5) & (np.abs(b) <= m["w"] / 2)
+        top = m["ground"] + m["h"]
+        G[i0:i1, j0:j1] = np.where(inside, np.maximum(G[i0:i1, j0:j1], top), G[i0:i1, j0:j1])
+    return G
+
+
+def sun_visibility(H, size=CORE_SIZE, max_dist=520.0, chunk=256):
+    """Soft sun visibility (0..1) for a height grid by marching toward the sun.
+
+    The penumbra widens with the occluder distance like a 0.55 degree sun disc.
+    """
+    n = H.shape[0]
+    px = size / n
+    L = sun_dir()
+    hl = math.hypot(L[0], L[1])
+    du, dv = L[0] / hl / px, L[1] / hl / px
+    rise = L[2] / hl
+    ts = [px * 0.75]
+    while ts[-1] < max_dist:
+        ts.append(ts[-1] + px * 0.75 * (1.0 + ts[-1] / 60.0))
+    vis = np.ones_like(H, dtype=np.float32)
+    jj = np.arange(n, dtype=np.float32)
+    for i0 in range(0, n, chunk):
+        rows = np.arange(i0, min(n, i0 + chunk), dtype=np.float32)
+        J, I = np.meshgrid(jj, rows)
+        h0 = H[i0 : i0 + chunk] + 0.05
+        v = np.ones_like(h0, dtype=np.float32)
+        for t in ts:
+            hq = _bilinear(H, J + du * t, I + dv * t)
+            margin = h0 + t * rise - hq
+            pen = t * 0.0096 + 0.15
+            v = np.minimum(v, np.clip(0.5 + margin / pen, 0, 1))
+        vis[i0 : i0 + chunk] = v
+    return vis
+
+
 def monolith_placements():
     out = []
     for m in MONOLITHS:
@@ -480,7 +543,7 @@ def export_meta(path, extra=None):
     meta = {
         "ridges": ridge_lines(),
         "core": {"x0": CORE_X0, "y0": CORE_Y0, "size": CORE_SIZE},
-        "sun": {"azimuth": SUN_AZIMUTH, "elevation": SUN_ELEVATION, "dir": [round(float(v), 5) for v in sun_dir()]},
+        "sun": {"azimuth": SUN_AZIMUTH, "elevation": SUN_ELEVATION, "skyElevation": SKY_ELEVATION, "dir": [round(float(v), 5) for v in sun_dir()]},
         "monoliths": monolith_placements(),
         "footprints": footprints(),
         "props": [{"kind": k, "p": [x, y], "yaw": yaw, "scale": sc, "sink": sk} for k, x, y, yaw, sc, sk in PROPS],

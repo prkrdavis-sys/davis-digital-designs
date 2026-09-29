@@ -16,7 +16,7 @@ node "$ART_ROOT/optimize.mjs" "$ART_OUT/dunes/terrain.glb" "$PUB/hi/terrain.glb"
 node "$ART_ROOT/optimize.mjs" "$ART_OUT/dunes/monoliths.glb" "$PUB/hi/monoliths.glb" --tex none
 node "$ART_ROOT/optimize.mjs" "$ART_OUT/dunes/props.glb" "$PUB/hi/props.glb" --tex webp --size 512
 
-blend dunes --steps bake --variant both --bake-size 2048
+blend dunes --steps shadow,bake --variant both --bake-size 2048 --shadow-size 4096 --samples 64
 node "$HERE/textures.mjs"
 
 blend dunes --steps layers,pano,mini --variant both

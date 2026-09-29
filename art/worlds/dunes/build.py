@@ -6,7 +6,8 @@ Steps (run with --steps a,b,...):
   sky        night sky equirect (Milky Way, stars, moon) for Cycles and the runtime
   monoliths  slabs with bezels, bands and panel planes (monoliths.glb)
   props      bleached quiver trunks and half-buried boulders (props.glb)
-  bake       Cycles: sun visibility + diffuse irradiance per variant -> terrain light maps
+  shadow     analytic sun visibility (slabs stamped in) packed with the 4K normals -> terrain-data.png
+  bake       Cycles diffuse irradiance per variant -> terrain light maps
   rail       camera flight -> rails.json
   preview    quick Cycles still at --s
   layers     Low Resources depth layers + posters for every tag (day/night)
@@ -41,7 +42,8 @@ CACHE = cli.CACHE
 def extra_args(p):
     p.add_argument("--s", default="0.3", help="chapter time(s) for preview, comma separated")
     p.add_argument("--tags", default="")
-    p.add_argument("--bake-size", type=int, default=4096)
+    p.add_argument("--bake-size", type=int, default=2048, help="irradiance maps")
+    p.add_argument("--shadow-size", type=int, default=4096, help="sun visibility, packed with the normals")
 
 
 args = cli.parse([extra_args])
@@ -708,19 +710,26 @@ def blur(a, sigma=0.9):
     return out
 
 
+def step_shadow():
+    """Sun visibility from the analytic heights with the slabs stamped in, packed with the normals."""
+    ssize = args.shadow_size
+    H = np.load(OUT / "h4.npy").astype(np.float32)
+    n = np.load(OUT / "n4.npy").astype(np.float32)
+    if H.shape[0] != ssize:
+        idx = (np.arange(ssize) * H.shape[0] / ssize).astype(int)
+        H, n = H[idx][:, idx], n[idx][:, idx]
+    shadow = dm.sun_visibility(dm.with_slabs(H))
+    cli.log("sun visibility", shadow.shape, "lit", round(float(shadow.mean()), 3))
+    packed = np.stack([n[..., 0] * 0.5 + 0.5, n[..., 1] * 0.5 + 0.5, shadow], -1)
+    save_png(packed.astype(np.float32), OUT / "terrain-data.png")
+
+
 def step_bake():
     size = args.bake_size
     data = {}
-    shadow = None
     for variant in args.variants:
         sc, terrain, far, slabs, props = stage(variant)
         sc.cycles.use_denoising = False
-        if shadow is None:
-            img = bake_image("shadow", size)
-            attach_target(terrain, img)
-            run_bake(terrain, "SHADOW", args.samples or (8 if args.preview else 24))
-            shadow = blur(pixels(img)[..., 0], 0.7)
-            bpy.data.images.remove(img)
         # Lighting only (no albedo): the runtime multiplies its own detailed sand color back in.
         img = bake_image(f"irr_{variant}", size)
         attach_target(terrain, img)
@@ -732,12 +741,6 @@ def step_bake():
         save_png(enc.astype(np.float32), OUT / f"light-{variant}.png")
         data[variant] = {"scale": round(scale, 5)}
         cli.log("irradiance", variant, "scale", round(scale, 4))
-    n = np.load(OUT / "n4.npy").astype(np.float32)
-    if n.shape[0] != size:
-        idx = (np.arange(size) * n.shape[0] / size).astype(int)
-        n = n[idx][:, idx]
-    packed = np.stack([n[..., 0] * 0.5 + 0.5, n[..., 1] * 0.5 + 0.5, np.clip(shadow, 0, 1)], -1)
-    save_png(packed.astype(np.float32), OUT / "terrain-data.png")
     mfile = OUT / "dunes_meta.json"
     mm = json.loads(mfile.read_text())
     mm.setdefault("light", {}).update(data)
@@ -888,6 +891,7 @@ STEPS = {
     "sky": step_sky,
     "monoliths": step_monoliths,
     "props": step_props,
+    "shadow": step_shadow,
     "bake": step_bake,
     "rail": step_rail,
     "preview": step_preview,
