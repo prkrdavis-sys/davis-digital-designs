@@ -67,6 +67,24 @@ def step_plane():
     export.glb(OUT / "plane.glb", [o])
 
 
+def _uv_puck(o, scale=1.0):
+    """UVs for a round base: caps projected from above, the rim wrapped by angle."""
+    me = o.data
+    uv = me.uv_layers.new(name="UVMap")
+    for poly in me.polygons:
+        if abs(poly.normal.z) > 0.5:
+            for li in poly.loop_indices:
+                co = me.vertices[me.loops[li].vertex_index].co
+                uv.data[li].uv = (co.x * scale + 0.5, co.y * scale + 0.5)
+            continue
+        mid = math.atan2(poly.center.y, poly.center.x)
+        for li in poly.loop_indices:
+            co = me.vertices[me.loops[li].vertex_index].co
+            a = math.atan2(co.y, co.x)
+            a += math.tau * round((mid - a) / math.tau)
+            uv.data[li].uv = (a * 0.3 * scale + 0.5, co.z * scale)
+
+
 def step_mini():
     scene.reset()
     objs = []
@@ -85,6 +103,7 @@ def step_mini():
     geo.apply_all(base)
     geo.set_origin_world(base)
     geo.smooth(base, 40)
+    _uv_puck(base)
     walnut = mat.pbr("walnut", {k: WALNUT / f"black_walnut_veneer_01_{v}_1k.png" for k, v in (("diffuse", "diffuse"), ("rough", "rough"), ("normal", "normal"))}, scale=0.6, coat=0.4, coat_rough=0.15)
     mat.assign(base, walnut)
     objs.append(base)
@@ -141,7 +160,7 @@ def step_atlas():
 def build_clouds(center, near_r=420, far=True, towers=True):
     objs = {"near": [], "far": [], "towers": []}
     t0 = time.time()
-    sea_mat = cl.cloud_material("sea", density=0.9, erosion=0.95, gain=1.8, scale=0.1, billow=0.45, anisotropy=0.3)
+    sea_mat = cl.cloud_material("sea", density=1.4, erosion=0.95, gain=2.0, scale=0.1, billow=0.8, anisotropy=0.3)
     near = cl.sea_spheres(0, near_r, 24.0, 11, center=center)
     objs["near"].append(cl.sphere_cloud("sea_near", near, sea_mat, voxel=3.0, blur_iters=1, dilate=1))
     if far:
@@ -149,10 +168,10 @@ def build_clouds(center, near_r=420, far=True, towers=True):
         far_mat = cl.cloud_material("sea_far", density=0.6, erosion=0.8, gain=1.8, scale=0.03, anisotropy=0.3)
         objs["far"].append(cl.sphere_cloud("sea_far", far_s, far_mat, voxel=10.0, blur_iters=1, dilate=1))
     if towers:
-        tmat = cl.cloud_material("tower", density=1.0, erosion=0.85, gain=1.8, scale=0.045, billow=0.4, anisotropy=0.3)
+        tmat = cl.cloud_material("tower", density=1.2, erosion=0.9, gain=2.2, scale=0.05, billow=0.9, anisotropy=0.3)
         for k, (x, z, h, _cell) in enumerate(WORLD["clouds"]["towers"]):
             p = b((x, 0, z))
-            sp = cl.tower_spheres(100 + k, h, h * 0.7, base=(p.x, p.y, -12.0))
+            sp = cl.tower_spheres(100 + k, h, h * 0.45, base=(p.x, p.y, -12.0))
             objs["towers"].append(cl.sphere_cloud(f"tower{k}", sp, tmat, voxel=max(2.0, h / 60), blur_iters=1, dilate=1))
     cli.log("clouds staged in", round(time.time() - t0, 1))
     return objs
