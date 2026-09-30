@@ -60,6 +60,7 @@ const worldCss = WORLD_IDS.map((id) => {
 function bootScript(projectWorlds: Record<string, string>): string {
   return `
 (function(){try{var d=document.documentElement;var t=localStorage.getItem('ddd:theme');if(t!=='dark'&&t!=='light'){t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}d.dataset.theme=t;
+if(localStorage.getItem('ddd:content-hidden')==='true')d.dataset.content='off';
 var p=location.pathname,w='home',ids=${JSON.stringify(WORLD_IDS)},pw=${JSON.stringify(projectWorlds)};
 if(p.indexOf('/work/')===0){w=pw[p.split('/')[2]]||'home'}else{var f=p.split('/')[1];if(ids.indexOf(f)>=0)w=f}
 d.dataset.world=w;}catch(e){}})();

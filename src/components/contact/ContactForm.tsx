@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { sendContact, type ContactState } from "@/app/contact/actions";
+import type { InterestGroup } from "@/lib/content";
 import { EASE_CURVE, springy } from "@/lib/motion";
 import { sfx } from "@/lib/sfx";
 import { burstAt } from "@/components/fx/ParticleBurst";
@@ -14,9 +15,10 @@ const BUDGETS = ["Under $1k", "$1k – $3k", "$3k – $8k", "$8k+", "Not sure ye
 
 interface Props {
   defaultSubject?: string;
+  interests: InterestGroup[];
 }
 
-export function ContactForm({ defaultSubject = "" }: Props) {
+export function ContactForm({ defaultSubject = "", interests }: Props) {
   const [state, action, pending] = useActionState<ContactState, FormData>(sendContact, { status: "idle" });
   const [budget, setBudget] = useState("");
   const card = useRef<HTMLDivElement>(null);
@@ -70,6 +72,51 @@ export function ContactForm({ defaultSubject = "" }: Props) {
               <Field label="Email" name="email" type="email" error={errors.email} autoComplete="email" placeholder="ada@example.com" />
             </div>
             <Field label="What is it about?" name="subject" defaultValue={defaultSubject} placeholder="A website, an app, a template..." />
+
+            <fieldset>
+              <legend className="font-display text-sm font-bold">
+                What should it include? <span className="font-normal text-[var(--ink-mute)]">(optional)</span>
+              </legend>
+              <div className="mt-4 space-y-6">
+                {interests.map((group) => (
+                  <fieldset key={group.id}>
+                    <legend className="font-display mb-3 text-sm font-bold">
+                      {group.emoji} {group.label}
+                    </legend>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      {group.options.map((option) => (
+                        <label
+                          key={option}
+                          data-sfx="silent"
+                          className="flex cursor-pointer items-center gap-3 rounded-2xl border border-[var(--line)] bg-[var(--bg)] px-4 py-3 font-display text-sm font-bold transition-colors has-checked:border-[var(--ink)] has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-[var(--world-a)]/40"
+                        >
+                          <input
+                            type="checkbox"
+                            name={group.id}
+                            value={option}
+                            onChange={() => sfx.pop()}
+                            className="size-4 shrink-0 accent-[var(--moss)]"
+                          />
+                          {option}
+                        </label>
+                      ))}
+                    </div>
+                    <AnimatePresence>
+                      {errors[group.id] && (
+                        <motion.span
+                          initial={{ opacity: 0, y: -4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0 }}
+                          className="mt-1.5 block text-sm font-bold text-[var(--petal)]"
+                        >
+                          {errors[group.id]}
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
+                  </fieldset>
+                ))}
+              </div>
+            </fieldset>
 
             <fieldset>
               <legend className="font-display mb-3 text-sm font-bold">Budget (optional)</legend>

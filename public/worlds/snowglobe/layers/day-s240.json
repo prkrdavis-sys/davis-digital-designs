@@ -1,1 +1,1 @@
-{"tag":"day-s240","s":2.4,"fov":42,"aspect":1.6,"layers":[{"band":"back","file":"day-s240-back.webp","depth":22},{"band":"mid","file":"day-s240-mid.webp","depth":9}]}
+{"tag":"day-s240","s":2.4,"fov":42,"aspect":1.6,"layers":[{"band":"back","file":"day-s240-back.webp","depth":26},{"band":"mid","file":"day-s240-mid.webp","depth":11},{"band":"near","file":"day-s240-near.webp","depth":4.6}]}

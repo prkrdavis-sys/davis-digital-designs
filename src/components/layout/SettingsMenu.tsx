@@ -40,7 +40,7 @@ function Switch({ on, onChange, label, hint }: { on: boolean; onChange: (v: bool
   );
 }
 
-/** Gear button + popover: quality, sound, theme, and the cursor easter egg reset. */
+/** Gear button + popover: quality, sound, theme, background-only, and the cursor easter egg reset. */
 export function SettingsMenu() {
   const open = useUi((s) => s.settingsOpen);
   const setOpen = useUi((s) => s.setSettingsOpen);
@@ -52,6 +52,8 @@ export function SettingsMenu() {
   const toggleMuted = useUi((s) => s.toggleMuted);
   const theme = useUi((s) => s.theme);
   const toggleTheme = useUi((s) => s.toggleTheme);
+  const contentHidden = useUi((s) => s.contentHidden);
+  const setContentHidden = useUi((s) => s.setContentHidden);
   const cursorOverride = useUi((s) => s.cursorOverride);
   const setCursorOverride = useUi((s) => s.setCursorOverride);
   const panel = useRef<HTMLDivElement>(null);
@@ -122,6 +124,12 @@ export function SettingsMenu() {
               <Switch on={ambient} onChange={setAmbient} label="Ambient sound" hint="A soft soundscape for each world: wind on Everest, pinball chimes, greenhouse birds." />
               <Switch on={!muted} onChange={() => toggleMuted()} label="Interface sounds" hint="Little pops and clicks when you hover and press." />
               <Switch on={theme === "dark"} onChange={() => toggleTheme()} label="Night mode" hint="Every world has a night version." />
+              <Switch
+                on={contentHidden}
+                onChange={setContentHidden}
+                label="Background only"
+                hint="Scroll the worlds on their own. The page and footer step aside; the navbar and cursor stay."
+              />
             </div>
             {cursorOverride && (
               <button

@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import matter from "gray-matter";
 import { z } from "zod";
-import type { CategorySlug } from "@/lib/categories";
+import { CATEGORIES, type CategorySlug } from "@/lib/categories";
 
 /* ------------------------------------------------------------------
    Schemas. If a frontmatter field is wrong, the build fails with a
@@ -134,6 +134,23 @@ export function getAllTags(projects: Project[]): string[] {
   const set = new Set<string>();
   projects.forEach((p) => p.tags.forEach((t) => set.add(t)));
   return Array.from(set).sort();
+}
+
+export interface InterestGroup {
+  id: CategorySlug;
+  label: string;
+  emoji: string;
+  options: string[];
+}
+
+/** Every project tag, grouped by the category page that used to filter on it. */
+export function getInterestGroups(): InterestGroup[] {
+  return CATEGORIES.map((category) => ({
+    id: category.slug,
+    label: category.name,
+    emoji: category.emoji,
+    options: getAllTags(getProjectsByCategory(category.slug)),
+  }));
 }
 
 export function getAllProducts(): Product[] {

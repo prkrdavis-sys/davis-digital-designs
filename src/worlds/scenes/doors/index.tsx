@@ -1,7 +1,7 @@
 "use client";
 
-import { use, useMemo, useRef } from "react";
-import { useFrame } from "@react-three/fiber";
+import { use, useEffect, useMemo, useRef } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { BloomEffect, DepthOfFieldEffect } from "postprocessing";
 import type { SceneComponentProps, Variant } from "@/worlds/types";
@@ -43,11 +43,32 @@ function Hi({ variant, mode }: SceneComponentProps) {
   const fx = useMemo(() => createDoorFx(layout.doors.length), [layout]);
   const focus = useMemo(() => new THREE.Vector3(...layout.doors[1].center), [layout]);
   const drift = useRef(0);
+  const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
+
+  // The shared camera is 0.1–1000. That ratio bands the depth the bokeh reads,
+  // so the colonnade (about 50 m) gets its own clip while this scene is up.
+  useEffect(() => {
+    const prevNear = camera.near;
+    const prevFar = camera.far;
+    camera.near = 0.15;
+    camera.far = 80;
+    camera.updateProjectionMatrix();
+    return () => {
+      camera.near = prevNear;
+      camera.far = prevFar;
+      camera.updateProjectionMatrix();
+    };
+  }, [camera]);
 
   useLook({ exposure: look.exposure, tone: "agx", seam: look.seam, grain: look.grain, vignette: look.vignette });
   usePostFX(
-    ({ camera }) => {
-      const dof = new DepthOfFieldEffect(camera, { worldFocusRange: 7, bokehScale: night ? 2.4 : 1.8, resolutionScale: 0.5 });
+    ({ camera: cam }) => {
+      // Half-resolution bokeh replaces a close arch with a chunky black mass:
+      // the near blur is gathered into a half-size buffer, then mixed over the
+      // sharp picture. Full-res bokeh and a wide focus range keep the arch
+      // you're walking through sharp and only soften the far colonnade.
+      // https://pmndrs.github.io/postprocessing/public/docs/class/src/effects/DepthOfFieldEffect.js~DepthOfFieldEffect.html
+      const dof = new DepthOfFieldEffect(cam, { worldFocusRange: 18, bokehScale: night ? 1.05 : 0.8, resolutionScale: 1 });
       dof.target = focus;
       const bloom = new BloomEffect({ intensity: night ? 1.1 : 0.4, luminanceThreshold: night ? 0.6 : 1.15, luminanceSmoothing: 0.25, mipmapBlur: true, radius: 0.7 });
       const grade = new GradeEffect(look.grade);

@@ -77,6 +77,13 @@ function tuneMaterials(root: THREE.Object3D, variant: Variant) {
     const name = m.name.replace(/\.\d+$/, "");
     m.userData.baseEmissive ??= m.emissiveIntensity ?? 1;
     m.envMapIntensity = 1;
+    // The GLB has no tangents. Anisotropic BRDF builds a frame from UV
+    // derivatives, which go NaN on these arches, and bloom turns that into
+    // a black smear. The metal still reads as steel without the stretch.
+    if ("anisotropy" in m) {
+      m.anisotropy = 0;
+      m.anisotropyMap = null;
+    }
     switch (name) {
       case "glass":
         m.transmission = 0;
@@ -103,10 +110,12 @@ function tuneMaterials(root: THREE.Object3D, variant: Variant) {
         m.color.set("#ffffff");
         break;
       case "steel":
-        // No anisotropy: the GLB has no tangents and derivative-based frames go NaN on its UVs, which bloom smears over the frame.
         m.roughness = 0.26;
         m.metalness = 1;
         m.envMapIntensity = 1.4;
+        break;
+      case "iron":
+        m.envMapIntensity = 1.15;
         break;
       case "snow":
         m.sheen = 0.8;

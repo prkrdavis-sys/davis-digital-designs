@@ -18,6 +18,7 @@ const SAMPLES = 6;
 export function PerfPrompt() {
   const low = useUi((s) => s.lowResources);
   const reducedMotion = useUi((s) => s.reducedMotion);
+  const contentHidden = useUi((s) => s.contentHidden);
   const setLow = useUi((s) => s.setLowResources);
   const [show, setShow] = useState(false);
 
@@ -51,7 +52,7 @@ export function PerfPrompt() {
 
   return (
     <AnimatePresence>
-      {show && !low && (
+      {show && !low && !contentHidden && (
         <motion.div
           role="status"
           initial={{ opacity: 0, y: 24, scale: 0.96 }}

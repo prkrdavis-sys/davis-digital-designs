@@ -38,6 +38,24 @@ export const scrollState = {
 
 const LOW_KEY = "ddd:low-power";
 const AMBIENT_KEY = "ddd:ambient";
+const CONTENT_KEY = "ddd:content-hidden";
+
+/** Hide the page and footer without collapsing them, so scroll still drives the worlds. */
+function syncContentHidden(hidden: boolean) {
+  if (typeof document === "undefined") return;
+  const root = document.documentElement;
+  if (hidden) root.dataset.content = "off";
+  else delete root.dataset.content;
+  for (const el of document.querySelectorAll("main, footer")) {
+    if (hidden) {
+      el.setAttribute("inert", "");
+      el.setAttribute("aria-hidden", "true");
+    } else {
+      el.removeAttribute("inert");
+      el.removeAttribute("aria-hidden");
+    }
+  }
+}
 
 interface UiState {
   theme: Theme;
@@ -84,6 +102,10 @@ interface UiState {
 
   settingsOpen: boolean;
   setSettingsOpen: (v: boolean) => void;
+
+  /** Page and footer are invisible; scroll, navbar, cursor, and the worlds remain. */
+  contentHidden: boolean;
+  setContentHidden: (v: boolean) => void;
 }
 
 export const useUi = create<UiState>((set, get) => ({
@@ -149,6 +171,13 @@ export const useUi = create<UiState>((set, get) => ({
 
   settingsOpen: false,
   setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
+
+  contentHidden: false,
+  setContentHidden: (contentHidden) => {
+    set({ contentHidden });
+    syncContentHidden(contentHidden);
+    if (typeof window !== "undefined") window.localStorage.setItem(CONTENT_KEY, String(contentHidden));
+  },
 }));
 
 export function useVariant(): Variant {
@@ -171,4 +200,8 @@ export function initialLowResources(isTouch: boolean): { value: boolean; source:
 
 export function storedAmbient(): boolean {
   return window.localStorage.getItem(AMBIENT_KEY) === "true";
+}
+
+export function storedContentHidden(): boolean {
+  return window.localStorage.getItem(CONTENT_KEY) === "true";
 }

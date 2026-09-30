@@ -41,11 +41,11 @@ export function Background() {
       {/* Legibility: worlds frame their subject right of centre, so a soft scrim sits behind the left text column; narrow screens get an even veil instead. */}
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-0 z-[1] bg-[color-mix(in_oklab,var(--bg)_24%,transparent)] md:bg-[linear-gradient(90deg,color-mix(in_oklab,var(--bg)_40%,transparent)_0%,color-mix(in_oklab,var(--bg)_16%,transparent)_36%,transparent_58%)]"
+        className="content-scrim pointer-events-none fixed inset-0 z-[1] bg-[color-mix(in_oklab,var(--bg)_24%,transparent)] md:bg-[linear-gradient(90deg,color-mix(in_oklab,var(--bg)_40%,transparent)_0%,color-mix(in_oklab,var(--bg)_16%,transparent)_36%,transparent_58%)]"
       />
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-0 z-[1] bg-[linear-gradient(to_bottom,transparent_60%,color-mix(in_oklab,var(--bg)_35%,transparent)_100%)]"
+        className="content-scrim pointer-events-none fixed inset-0 z-[1] bg-[linear-gradient(to_bottom,transparent_60%,color-mix(in_oklab,var(--bg)_35%,transparent)_100%)]"
       />
     </>
   );

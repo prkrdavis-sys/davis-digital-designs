@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { SplitText } from "gsap/SplitText";
-import { initialLowResources, pointer, storedAmbient, useUi } from "@/lib/store";
+import { initialLowResources, pointer, storedAmbient, storedContentHidden, useUi } from "@/lib/store";
 import { worldForPath } from "@/lib/worlds";
 import { sfx } from "@/lib/sfx";
 
@@ -31,6 +31,7 @@ export function Providers({ children }: { children: ReactNode }) {
       useUi.setState({ muted: true });
     }
     useUi.setState({ ambient: storedAmbient() });
+    if (storedContentHidden()) useUi.getState().setContentHidden(true);
 
     const rm = window.matchMedia("(prefers-reduced-motion: reduce)");
     const touch = window.matchMedia("(hover: none), (pointer: coarse)");

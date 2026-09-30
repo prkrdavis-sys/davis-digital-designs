@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { CATEGORIES, getCategory } from "@/lib/categories";
 import { WORLDS } from "@/lib/worlds";
-import { getAllTags, getProjectsByCategory } from "@/lib/content";
+import { getProjectsByCategory } from "@/lib/content";
 import { PageHero } from "@/components/work/PageHero";
 import { ProjectGrid } from "@/components/work/ProjectGrid";
 import { Button } from "@/components/ui/Button";
@@ -27,7 +27,6 @@ export default async function CategoryPage({ params }: PageProps<"/[category]">)
   if (!cat) notFound();
 
   const projects = getProjectsByCategory(cat.slug);
-  const tags = getAllTags(projects);
   const world = WORLDS[cat.world];
 
   return (
@@ -39,7 +38,7 @@ export default async function CategoryPage({ params }: PageProps<"/[category]">)
       </PageHero>
       <section data-chapter="work" className="px-6 pb-24 md:px-12">
         <div className="mx-auto max-w-6xl">
-          <ProjectGrid projects={projects} tags={tags} />
+          <ProjectGrid projects={projects} />
         </div>
       </section>
       {world.interlude && (

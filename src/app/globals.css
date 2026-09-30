@@ -133,6 +133,19 @@ html[data-leaving] footer {
   transform: scale(0.985);
 }
 
+/* Background-only: keep layout (and fixed pins) so scroll still plays the worlds. */
+html[data-content="off"] main,
+html[data-content="off"] footer {
+  visibility: hidden;
+}
+
+.content-scrim {
+  transition: opacity 0.42s var(--ease-in-out);
+}
+html[data-content="off"] .content-scrim {
+  opacity: 0;
+}
+
 /* When the custom cursor is active, hide the native one everywhere. */
 html[data-custom-cursor],
 html[data-custom-cursor] * {

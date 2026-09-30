@@ -46,10 +46,9 @@ interface Built {
 }
 
 /**
- * The Low Resources renderer: Cycles depth layers on planes at their real
- * distances, so moving the camera a little produces genuine parallax. Each
- * chapter's set sits one dolly-length further down -Z, so scrolling flies
- * forward through them while they crossfade.
+ * The Low Resources renderer: depth plates on planes at their real distances.
+ * Scrolling eases the camera forward, drifts the nearer plates across the
+ * frame, and crossfades into the next chapter's set.
  */
 export function LayerStack({ scene, variant, parallax = 0.035, dolly = 0.14, fade = 0.45, focus = 0.64, tail = 1.4, tailScale = 1, children }: Props) {
   useLook({ tone: "none", exposure: 1, grain: 0.04, vignette: 0.28 });
@@ -119,18 +118,44 @@ export function LayerStack({ scene, variant, parallax = 0.035, dolly = 0.14, fad
     const u = next ? THREE.MathUtils.clamp(past, 0, 1) : THREE.MathUtils.clamp(past, 0, tail) * tailScale;
     const a = next ? THREE.MathUtils.smoothstep(u, 1 - fade, 1) : 0;
 
+    // Ease across the whole chapter, and finish exactly on the next set so the
+    // handoff does not pop. The back plate stays put; nearer plates drift.
+    const eased = THREE.MathUtils.smoothstep(Math.min(u, 1), 0, 1) + Math.max(0, u - 1) * 0.35;
+
     // The current set's back layer stays opaque so the crossfade never dips toward black.
     built.forEach((b, i) => {
       const o = i === k ? 1 - a : i === k + 1 ? a : 0;
       b.materials.forEach((m, j) => (m.opacity = i === k && j === 0 ? 1 : o));
-      b.group.visible = i === k || o > 0.001;
+      const visible = i === k || o > 0.001;
+      b.group.visible = visible;
+      const travel = i === k ? eased : i === k + 1 ? eased - 1 : 0;
+      const rise = b.nearest * 0.04;
+      b.group.position.y = i === k ? -a * rise : i === k + 1 ? (1 - a) * rise : 0;
+      if (!visible) return;
+      b.group.children.forEach((obj, j) => {
+        const mesh = obj as THREE.Mesh;
+        const depth = mesh.userData.depth as number;
+        if (j === 0) {
+          mesh.position.x = 0;
+          mesh.position.y = 0;
+          mesh.scale.setScalar(1.22);
+          return;
+        }
+        // Closer bands travel farther, so a still plate reads as a move while scrolling.
+        const lead = 0.4 + 0.6 * (b.nearest / Math.max(depth, 0.001));
+        mesh.position.x = travel * depth * 0.085 * lead;
+        mesh.position.y = travel * depth * -0.028 * lead;
+        mesh.scale.setScalar(1.18 + Math.max(0, travel) * 0.05 * lead);
+      });
     });
 
     // Camera flies from this set's origin toward the next one, plus pointer parallax.
     const near = cur.nearest;
     const z = cur.group.position.z - u * near * dolly;
-    camera.position.set(pointer.sx * near * parallax, pointer.sy * near * parallax * 0.6, z);
+    const lift = eased * near * 0.012;
+    camera.position.set(pointer.sx * near * parallax, pointer.sy * near * parallax * 0.6 + lift, z);
     camera.quaternion.identity();
+    camera.rotateZ(THREE.MathUtils.clamp(-time.velocity, -1.4, 1.4) * 0.007);
     const fov = cur.set.fov / 1.08;
     const viewAspect = size.width / Math.max(1, size.height);
     const imgAspect = cur.set.aspect;

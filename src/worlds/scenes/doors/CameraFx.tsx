@@ -35,7 +35,10 @@ export function CameraFx({ layout, fx, focus }: { layout: DoorsLayout; fx: DoorF
     centers.forEach((c, i) => {
       tmp.c.copy(c).sub(camera.position);
       const ahead = tmp.c.dot(tmp.fwd);
-      if (ahead > 2.5 && ahead < bestD) {
+      // Include the arch the camera is passing through. Skipping anything
+      // closer than 2.5 m left that frame fully in the near-blur and it
+      // came back as a black block.
+      if (ahead > 0.6 && ahead < bestD) {
         bestD = ahead;
         best = i;
       }
