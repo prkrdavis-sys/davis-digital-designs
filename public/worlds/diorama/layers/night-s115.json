@@ -1,0 +1,1 @@
+{"tag":"night-s115","s":1.15,"fov":38.83939610644983,"aspect":1.6,"p":[-3.769,3.076,-4.594],"q":[-0.08073,-0.90051,-0.17918,0.38788],"layers":[{"band":"back","file":"night-s115-back.webp","depth":28},{"band":"mid","file":"night-s115-mid.webp","depth":6.07},{"band":"front","file":"night-s115-front.webp","depth":2.362}]}

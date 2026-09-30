@@ -1,19 +1,34 @@
 # Diorama handoff (scene `diorama`)
 
 ## Status
-- In progress on `cursor/diorama-scene-516f`.
-- Blender pipeline and runtime scene written. Preview / bake / layers not rendered yet.
+Shipped on `cursor/diorama-scene-516f`. Runtime + Blender pipeline + baked terrain + rails + mini + Low Resources layers + day/night panos.
 
 ## Done
-- `art/worlds/diorama/build.py` (+ `look.py`, `layout.py`, `build.sh`): kidney island + three islets, gravel path, arched bridges, trees, lanterns, pond, wooden table, placeholders for missing minis, import of `public/worlds/<scene>/lo/mini.glb` when present.
-- Steps: `rail`, `preview`, `bake`, `layers`, `pano`, `mini`. `layers` and `pano` are standalone re-runnable (`blend diorama --steps layers,pano`).
-- Runtime: `src/worlds/scenes/diorama/` hi (baked terrain + HEAD-checked minis + tilt-shift + dust), lo (LayerStack + sparkles), parked (remap + CoverPanel).
+- Kidney island + three islets, pond hole, gravel path, bridges, trees, lanterns, flowers, wooden table (runtime mesh, not in the GI atlas).
+- Imports `public/worlds/<scene>/lo/mini.glb` when present (scales giants, e.g. DNA). Placeholders for missing / KTX2-only minis (planes fails Blender import because of `KHR_texture_basisu`).
+- Runtime HEAD-checks each mini and draws a glossy palette placeholder if 404.
+- Camera rail `s ∈ [0, 2.2]`: close on the garden star (cta, subject right of centre), crane + orbit to a wide tabletop (outro).
+- Night: plot lamps + sky stars. Lo: LayerStack + sparkles. Parked: remap ~1.72 + CoverPanel.
+- Local bake helper (shared `bake.bake_group` hits a UTF-8 UV-name bug on this join).
+- Layers at `s = 0.08, 1.15, 2.00` (day + night). Wide tags have back+mid only (no front band at that distance).
+- Equirect panos from mid-island: `public/worlds/diorama/pano-{day,night}.webp`.
 
-## Inputs you depend on
-- Miniatures at `public/worlds/<scene>/lo/mini.glb`. On this branch: `dna`, `garden`, `greenhouse`, `planes`. The rest (pinball, snowglobe, dunes, everest, bubbles, doors, museum) use glossy palette placeholders until they merge.
-- Homepage palette is `home` in `src/lib/worlds.ts`.
+## Inputs
+- Minis on this branch: `dna`, `garden`, `greenhouse`. `planes` exists but is KTX2 and Blender cannot import it — placeholder in Cycles, real GLB at runtime.
+- Missing: pinball, snowglobe, dunes, everest, bubbles, doors, museum.
+- Re-run layers/pano after those merge:
+  ```
+  source art/env.sh && blend diorama --steps layers,pano --variant both
+  node art/images.mjs layers diorama
+  for v in day night; do
+    node art/images.mjs pano art/out/diorama/pano-$v.png public/worlds/diorama/pano-$v.webp
+  done
+  ```
 
-## Next
-1. Fetch venice_sunset HDRI and iterate Cycles `--preview` stills (cta / mid / outro, day + night).
-2. Bake terrain, export rails / mini, optimize GLBs.
-3. Render layers + pano; screenshot every chapter.
+## Files
+- `art/worlds/diorama/{look.py,layout.py,build.py,build.sh}`
+- `src/worlds/scenes/diorama/{index.tsx,layout.ts,Sky.tsx,Pond.tsx,Dust.tsx,LoSparkle.tsx,Minis.tsx}`
+- `public/worlds/diorama/{rails.json,hi/{layout.json,terrain-day.glb,terrain-night.glb},lo/mini.glb,layers/*,posters/*,pano-day.webp,pano-night.webp}`
+
+## Proposed shared diff
+In `art/lib/ddd/bake.py`, `uvn.uv_map = uv.name` can raise `UnicodeDecodeError` after a large join on Blender 5.2. Use a literal `"bake"` (and sanitize layer names) instead of reading `uv.name`.
