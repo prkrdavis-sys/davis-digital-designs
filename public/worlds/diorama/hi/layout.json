@@ -1,0 +1,195 @@
+{
+ "sMax": 2.2,
+ "pond": {
+  "c": [
+   0.05,
+   0.05,
+   -0.12
+  ],
+  "rx": 2.15,
+  "rz": 1.72
+ },
+ "table": {
+  "radius": 8.4,
+  "height": 0.22
+ },
+ "plots": [
+  {
+   "id": "garden",
+   "p": [
+    2.58,
+    0.6244,
+    3.88
+   ],
+   "yaw": 0.3142,
+   "kind": "star",
+   "day": "#ffcf4d",
+   "night": "#ffd76f",
+   "glow": "#ffe9a0"
+  },
+  {
+   "id": "doors",
+   "p": [
+    3.88,
+    0.6061,
+    1.12
+   ],
+   "yaw": -0.2443,
+   "kind": "arch",
+   "day": "#9dbcff",
+   "night": "#a3b6ff",
+   "glow": "#ffe08f"
+  },
+  {
+   "id": "museum",
+   "p": [
+    3.52,
+    0.6483,
+    -1.78
+   ],
+   "yaw": -0.4538,
+   "kind": "frame",
+   "day": "#f4c552",
+   "night": "#ffd66e",
+   "glow": "#fff1c2"
+  },
+  {
+   "id": "bubbles",
+   "p": [
+    1.22,
+    0.5779,
+    -3.58
+   ],
+   "yaw": 0.1745,
+   "kind": "sphere",
+   "day": "#ff9cc2",
+   "night": "#ffa6d0",
+   "glow": "#ffd0ea"
+  },
+  {
+   "id": "greenhouse",
+   "p": [
+    -1.78,
+    0.616,
+    -3.38
+   ],
+   "yaw": 0.4189,
+   "kind": "glass",
+   "day": "#8fd08a",
+   "night": "#9ae8a4",
+   "glow": "#c8ffc4"
+  },
+  {
+   "id": "dna",
+   "p": [
+    -3.58,
+    0.6348,
+    -1.42
+   ],
+   "yaw": -0.2094,
+   "kind": "helix",
+   "day": "#5cc3d2",
+   "night": "#6dffab",
+   "glow": "#7f97ff"
+  },
+  {
+   "id": "pinball",
+   "p": [
+    -3.48,
+    0.5923,
+    1.58
+   ],
+   "yaw": 0.6632,
+   "kind": "table",
+   "day": "#ff5c9d",
+   "night": "#ff4fa0",
+   "glow": "#3edcff"
+  },
+  {
+   "id": "snowglobe",
+   "p": [
+    -1.12,
+    0.6479,
+    3.68
+   ],
+   "yaw": 0.1047,
+   "kind": "globe",
+   "day": "#a9dcff",
+   "night": "#86e8cc",
+   "glow": "#cbb2ff"
+  },
+  {
+   "id": "everest",
+   "p": [
+    0.38,
+    0.8946,
+    -6.48
+   ],
+   "yaw": 0.0,
+   "kind": "peak",
+   "day": "#f4c552",
+   "night": "#ffd66e",
+   "glow": "#8dbcff"
+  },
+  {
+   "id": "dunes",
+   "p": [
+    -6.18,
+    0.6268,
+    3.78
+   ],
+   "yaw": 0.733,
+   "kind": "cone",
+   "day": "#ffb85f",
+   "night": "#ffdca8",
+   "glow": "#ff8a66"
+  },
+  {
+   "id": "planes",
+   "p": [
+    6.38,
+    0.6528,
+    2.32
+   ],
+   "yaw": -0.3142,
+   "kind": "plane",
+   "day": "#ffa684",
+   "night": "#ffd07e",
+   "glow": "#bea3ff"
+  }
+ ],
+ "focus": [
+  {
+   "s": 0.0,
+   "p": [
+    2.58,
+    1.0744,
+    3.88
+   ]
+  },
+  {
+   "s": 0.85,
+   "p": [
+    1.608,
+    0.8246,
+    2.288
+   ]
+  },
+  {
+   "s": 1.4,
+   "p": [
+    0.15,
+    0.45,
+    -0.1
+   ]
+  },
+  {
+   "s": 2.0,
+   "p": [
+    0.15,
+    0.45,
+    -0.1
+   ]
+  }
+ ]
+}

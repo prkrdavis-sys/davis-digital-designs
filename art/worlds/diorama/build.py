@@ -27,6 +27,7 @@ import bmesh  # noqa: E402
 from mathutils import Matrix, Vector  # noqa: E402
 
 from ddd import bake, cli, export, geo, mat, rails, render, scene  # noqa: E402
+from ddd.bake import EMISSIVE_HEADROOM  # noqa: E402
 from ddd.cli import CACHE, PUBLIC_WORLDS  # noqa: E402
 
 import layout as L  # noqa: E402
@@ -59,11 +60,14 @@ def ellipse(x, y, cx, cy, rx, ry):
 
 def island_field(x, y):
     """Positive inside land. Offset lobes + noisy coast, three islets, causeways."""
-    e1 = 1.0 - ellipse(x, y, 1.55, -1.85, 3.35, 2.75)
-    e2 = 1.0 - ellipse(x, y, -1.85, 1.55, 3.15, 2.65)
+    e1 = 1.0 - ellipse(x, y, 1.55, -1.85, 3.55, 3.05)
+    e2 = 1.0 - ellipse(x, y, -1.85, 1.55, 3.45, 2.95)
     main = max(e1, e2) + 0.14 * n2(x, y, 0.32)
-    bite = max(0.0, 1.0 - ellipse(x, y, 3.6, 3.4, 1.9, 1.7))
-    main -= 0.28 * bite
+    bite = max(0.0, 1.0 - ellipse(x, y, 3.85, 3.7, 1.7, 1.5))
+    main -= 0.22 * bite
+    for _pid, px, py, *_rest in L.PLOTS:
+        d2 = (x - px) ** 2 + (y - py) ** 2
+        main = max(main, 1.0 - d2 / (1.25 ** 2))
     ev = 1.0 - ellipse(x, y, 0.38, 6.48, 1.52, 1.38)
     du = 1.0 - ellipse(x, y, -6.18, -3.78, 1.48, 1.32)
     pl = 1.0 - ellipse(x, y, 6.38, -2.32, 1.32, 1.18)
@@ -601,7 +605,8 @@ def build_static():
 
 
 def static_list(parts):
-    out = [parts["island"], parts["table"], parts["dock"], *parts["paths"], *parts["bridges"], *parts["trees"], *parts["pads"], *parts["lanterns"], *parts["rocks"], *parts["lilies"], *parts["flowers"], *parts["reeds"]]
+    # Table is a huge disc — keep it out of the atlas so grass and props get the texels.
+    out = [parts["island"], parts["dock"], *parts["paths"], *parts["bridges"], *parts["trees"], *parts["pads"], *parts["lanterns"], *parts["rocks"], *parts["lilies"], *parts["flowers"], *parts["reeds"]]
     return [o for o in out if o is not None]
 
 
@@ -727,12 +732,98 @@ def step_preview():
             cli.log("preview", variant, s)
 
 
+def _ascii_uvs(obj, keep="bake"):
+    """Blender 5 can hand back non-utf8 UV names after a big join; force ASCII."""
+    for layer in list(obj.data.uv_layers):
+        try:
+            name = layer.name
+        except UnicodeDecodeError:
+            name = ""
+        if name != keep:
+            try:
+                layer.name = "src"
+            except (UnicodeDecodeError, RuntimeError):
+                try:
+                    obj.data.uv_layers.remove(layer)
+                except Exception:
+                    pass
+    uv = obj.data.uv_layers.get(keep) or obj.data.uv_layers.new(name=keep)
+    try:
+        uv.name = keep
+    except UnicodeDecodeError:
+        pass
+    obj.data.uv_layers.active = uv
+    return keep
+
+
+def bake_terrain(objs, name, out_dir, size=2048, samples=72):
+    """Local bake_group that never reads uv.name (shared helper can throw UnicodeDecodeError)."""
+    out_dir = pathlib.Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    sc = bpy.context.scene
+    joined = geo.join(objs, name) if len(objs) > 1 else objs[0]
+    joined.name = name
+    _ascii_uvs(joined, "bake")
+    bake._select_only([joined], joined)
+    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.ops.mesh.select_all(action="SELECT")
+    bpy.ops.uv.smart_project(angle_limit=math.radians(60), island_margin=0.003, area_weight=0.0, scale_to_bounds=False)
+    try:
+        bpy.ops.uv.pack_islands(rotate=True, margin=0.003, shape_method="CONCAVE")
+    except TypeError:
+        bpy.ops.uv.pack_islands(rotate=True, margin=0.003)
+    bpy.ops.object.mode_set(mode="OBJECT")
+    _ascii_uvs(joined, "bake")
+    img = bpy.data.images.new(f"{name}_bake", size, size, alpha=False, float_buffer=True)
+    try:
+        img.colorspace_settings.name = "Linear Rec.709"
+    except TypeError:
+        img.colorspace_settings.name = "Linear"
+    for m in joined.data.materials:
+        if not m:
+            continue
+        nt = m.node_tree
+        tex = nt.nodes.new("ShaderNodeTexImage")
+        tex.image = img
+        uvn = nt.nodes.new("ShaderNodeUVMap")
+        uvn.uv_map = "bake"
+        nt.links.new(uvn.outputs[0], tex.inputs["Vector"])
+        for n in nt.nodes:
+            n.select = False
+        tex.select = True
+        nt.nodes.active = tex
+    prev = sc.cycles.samples
+    sc.cycles.samples = samples
+    sc.render.bake.margin = 12
+    sc.render.bake.use_clear = True
+    bake._select_only([joined], joined)
+    cli.log("baking", name, f"{size}px", f"{samples}spp")
+    bpy.ops.object.bake(type="COMBINED", pass_filter={"EMIT", "DIRECT", "INDIRECT", "DIFFUSE"}, margin=12, use_clear=True)
+    sc.cycles.samples = prev
+    path = out_dir / f"{name}.png"
+    bake.save_srgb(img, path, exposure=-1.0)
+    baked = mat.principled(f"{name}_baked", base=(0, 0, 0), rough=0.62, metal=0.0, specular=0.5)
+    b = mat.bsdf_of(baked)
+    t = mat.image_node(baked, path, "sRGB", uv_map="bake")
+    baked.node_tree.links.new(t.outputs["Color"], b.inputs["Emission Color"])
+    b.inputs["Emission Strength"].default_value = EMISSIVE_HEADROOM * (2.0 ** (-(-1.0) - 1.0))
+    joined.data.materials.clear()
+    joined.data.materials.append(baked)
+    for layer in list(joined.data.uv_layers):
+        try:
+            if layer.name != "bake":
+                joined.data.uv_layers.remove(layer)
+        except UnicodeDecodeError:
+            joined.data.uv_layers.remove(layer)
+    return joined
+
+
 def step_bake():
     for variant in args.variants:
         sc, cam, parts, minis = stage(variant)
         # Hide live water and minis from the joined atlas (they stay real-time).
         static = static_list(parts)
-        joined = bake.bake_group(static, f"terrain_{variant}", OUT / "bake", size=2048, samples=args.samples or (48 if args.preview else 72), roughness=0.62)
+        joined = bake_terrain(static, f"terrain_{variant}", OUT / "bake", size=2048, samples=args.samples or (48 if args.preview else 72))
         export.tag(joined, kind="baked", variant=variant)
         export.glb(OUT / f"terrain-{variant}.glb", [joined])
 

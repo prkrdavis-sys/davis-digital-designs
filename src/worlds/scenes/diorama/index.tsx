@@ -36,6 +36,15 @@ function focusAt(layout: DioramaLayout, s: number, out: THREE.Vector3) {
   return out.set(a.p[0] + (b.p[0] - a.p[0]) * t, a.p[1] + (b.p[1] - a.p[1]) * t, a.p[2] + (b.p[2] - a.p[2]) * t);
 }
 
+function Table({ night }: { night: boolean }) {
+  return (
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.12, 0]} receiveShadow>
+      <cylinderGeometry args={[8.4, 8.4, 0.22, 72]} />
+      <meshPhysicalMaterial color={night ? "#2a1c18" : "#6b3f24"} roughness={0.52} sheen={0.15} sheenColor="#c49862" />
+    </mesh>
+  );
+}
+
 function Terrain({ variant }: { variant: Variant }) {
   const gltf = useWorldGLTF("diorama", `terrain-${variant}.glb`);
   useEffect(() => {
@@ -130,6 +139,7 @@ function Hi({ variant, mode }: SceneComponentProps) {
       <FollowCamera>
         <Sky stops={pal.sky} stars={pal.stars} />
       </FollowCamera>
+      <Table night={night} />
       <Terrain variant={variant} />
       <Pond center={layout.pond.c} rx={layout.pond.rx} rz={layout.pond.rz} tint={pal.water} night={night} />
       <Minis plots={layout.plots} variant={variant} />
