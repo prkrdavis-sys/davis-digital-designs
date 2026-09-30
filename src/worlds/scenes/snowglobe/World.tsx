@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useTexture } from "@react-three/drei";
 import * as THREE from "three";
@@ -103,19 +103,38 @@ export function World({ meta, variant, hideBillboard, onReady }: { meta: SnowMet
   }, [desk, village, lightmaps, meta, variant, night]);
 
   // Covers on the screens: a slight HDR boost so they read as lit displays.
+  // The village quads put UV v=0 at the top, so these copies stay unflipped.
+  // The shared textures keep the default flip for planes elsewhere.
   const screenMats = useMemo(() => {
     const out = new Map<string, THREE.MeshBasicMaterial>();
+    const flipped = new Map<THREE.Texture, THREE.Texture>();
     for (const [name, url] of Object.entries(meta.covers)) {
-      const tex = covers[coverUrls.indexOf(url)];
+      const src = covers[coverUrls.indexOf(url)];
+      let tex = flipped.get(src);
+      if (!tex) {
+        tex = src.clone();
+        tex.flipY = false;
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.anisotropy = 8;
+        tex.needsUpdate = true;
+        flipped.set(src, tex);
+      }
       out.set(name, new THREE.MeshBasicMaterial({ map: tex, color: new THREE.Color(1, 1, 1).multiplyScalar(night ? 1.5 : 1.1) }));
     }
-    return out;
+    return { out, flipped: [...flipped.values()] };
   }, [meta, covers, coverUrls, night]);
+
+  useEffect(() => {
+    return () => {
+      for (const mat of screenMats.out.values()) mat.dispose();
+      for (const tex of screenMats.flipped) tex.dispose();
+    };
+  }, [screenMats]);
 
   const billboardMesh = useRef<THREE.Mesh | null>(null);
   useLayoutEffect(() => {
     forEachMesh(village.scene, (mesh) => {
-      const mat = screenMats.get(mesh.name);
+      const mat = screenMats.out.get(mesh.name);
       if (mat) mesh.material = mat;
       if (mesh.name === "screen_billboard") billboardMesh.current = mesh;
     });

@@ -13,16 +13,20 @@ import { loadDna, sampleTrack, type DnaData } from "@/worlds/scenes/dna/model";
 import { Helix, HELIX_PALETTES } from "@/worlds/scenes/dna/Helix";
 import { Chromosome, Proteins } from "@/worlds/scenes/dna/Proteins";
 import { Medium } from "@/worlds/scenes/dna/Medium";
+import { Filaments } from "@/worlds/scenes/dna/Filaments";
+import { Organelles } from "@/worlds/scenes/dna/Organelles";
 import { LoBokeh } from "@/worlds/scenes/dna/LoBokeh";
 import { CoverPanel } from "@/components/three/engine/CoverPanel";
 
 const RAIL = "/worlds/dna/rails.json";
 const PROTEIN_FILES = ["histone", "pcna", "helicase", "polymerase", "groel", "chromosome"];
+const ORGANELLE_FILES = ["vesicle", "mitochondrion", "er"];
 
 export function preload() {
   void loadDna();
   void loadRail(RAIL);
   for (const f of PROTEIN_FILES) preloadWorldGLTF("dna", `${f}.glb`);
+  for (const f of ORGANELLE_FILES) preloadWorldGLTF("dna", `${f}.glb`);
 }
 
 /** Keeps the depth range tight around the subject: 0.02 nm up close, microns when pulled back. */
@@ -95,6 +99,8 @@ function Hi({ variant, mode }: SceneComponentProps) {
       <directionalLight position={[6, 8, 5]} intensity={night ? 0.2 : 2.2} color="#fff1e2" />
       <directionalLight position={[-6, -2, -8]} intensity={night ? 0.1 : 1.2} color="#cfdcff" />
       <Medium variant={variant} />
+      <Filaments variant={variant} />
+      <Organelles variant={variant} center={data.meta.chromosome?.center ?? [1000, -880, 370]} />
       <Helix data={data} variant={variant} />
       <Proteins data={data} variant={variant} fog={fog} />
       <Chromosome data={data} variant={variant} fog={fog} />

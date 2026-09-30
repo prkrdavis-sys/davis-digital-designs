@@ -7,6 +7,7 @@ Steps (run with --steps a,b,...):
   rail        camera rail -> rails.json
   preview     quick Cycles check of the helix at a given --s
   layers      Low Resources depth layers + posters for every tag (day/night)
+  organelles  background-only vesicle, mitochondrion, and ER meshes (not the DNA)
 
 Units are nanometers. The model math lives in dna_model.py (shared with the
 runtime); this file only stages it in Blender.
@@ -20,6 +21,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parents[1] / "lib"))
 sys.path.insert(0, str(HERE))
 
+import bmesh  # noqa: E402
 import bpy  # noqa: E402
 import numpy as np  # noqa: E402
 from mathutils import Matrix, Vector  # noqa: E402
@@ -653,6 +655,108 @@ def step_mini():
     export.glb(OUT / "mini.glb", [o])
 
 
+def _normalize(obj, size=1.0):
+    """Bake transforms and fit the longest axis to `size` (runtime scales in nm)."""
+    geo.set_origin_world(obj)
+    xs = [c[0] for c in obj.bound_box]
+    ys = [c[1] for c in obj.bound_box]
+    zs = [c[2] for c in obj.bound_box]
+    ext = max(max(xs) - min(xs), max(ys) - min(ys), max(zs) - min(zs), 1e-6)
+    obj.scale = (size / ext, size / ext, size / ext)
+    geo.set_origin_world(obj)
+    return obj
+
+
+def _weld(obj, dist=0.0008):
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=dist)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.to_mesh(obj.data)
+    bm.free()
+    obj.data.update()
+    return obj
+
+
+def _hemisphere(name, radius, sign):
+    """UV-sphere cap. sign=+1 keeps +Z, sign=-1 keeps -Z. Open at the equator."""
+    o = geo.primitive("sphere", name, u=24, v=12, radius=radius)
+    bm = bmesh.new()
+    bm.from_mesh(o.data)
+    doomed = [v for v in bm.verts if v.co.z * sign < -1e-5]
+    bmesh.ops.delete(bm, geom=doomed, context="VERTS")
+    bm.to_mesh(o.data)
+    bm.free()
+    o.data.update()
+    return o
+
+
+def step_organelles():
+    """Unit-scale cell parts for the runtime background. Does not touch the helix."""
+    scene.reset()
+    membrane = mat.principled("membrane", base=(0.96, 0.9, 0.9), rough=0.35, coat=0.4, sheen=0.8, alpha=0.85)
+
+    # Mitochondrion: capsule along Blender Z (glTF +Y), with accordion folds for cristae.
+    radius, depth = 0.42, 1.55
+    body = geo.primitive("cylinder", "mito_body", segments=28, radius=radius, depth=depth, caps=False)
+    cap_hi = _hemisphere("mito_cap_hi", radius, 1)
+    cap_lo = _hemisphere("mito_cap_lo", radius, -1)
+    cap_hi.location = (0, 0, depth * 0.5)
+    cap_lo.location = (0, 0, -depth * 0.5)
+    mito = geo.join([body, cap_hi, cap_lo], "mitochondrion")
+    _weld(mito, 0.01)
+    bm = bmesh.new()
+    bm.from_mesh(mito.data)
+    bm.normal_update()
+    for v in bm.verts:
+        band = max(0.0, math.sin(v.co.z * 11.0))
+        pinch = 1.0 - 0.16 * band
+        v.co.x *= pinch
+        v.co.y *= 1.0 - 0.07 * band
+        v.co += v.normal * (0.012 * math.sin(v.co.z * 5.0 + v.co.x * 3.0))
+    bm.to_mesh(mito.data)
+    bm.free()
+    mito.data.update()
+    geo.smooth(mito, 55)
+    mat.assign(mito, membrane)
+    _normalize(mito, 1.0)
+    export.glb(OUT / "mitochondrion.glb", [mito])
+    cli.log("mitochondrion tris", geo.triangle_count(mito))
+
+    scene.reset()
+    vesicle = geo.primitive("ico", "vesicle", subdiv=3, radius=0.5)
+    geo.displace_noise(vesicle, strength=0.04, scale=0.28, detail=2)
+    geo.apply_all(vesicle)
+    bm = bmesh.new()
+    bm.from_mesh(vesicle.data)
+    for v in bm.verts:
+        dent = 0.04 * math.sin(v.co.x * 9.0) * math.cos(v.co.y * 7.0)
+        v.co *= 1.0 - max(0.0, dent)
+    bm.to_mesh(vesicle.data)
+    bm.free()
+    vesicle.data.update()
+    geo.smooth(vesicle, 60)
+    mat.assign(vesicle, mat.principled("vesicle_mem", base=(0.98, 0.93, 0.94), rough=0.32, coat=0.5, sheen=1.0, alpha=0.8))
+    _normalize(vesicle, 1.0)
+    export.glb(OUT / "vesicle.glb", [vesicle])
+    cli.log("vesicle tris", geo.triangle_count(vesicle))
+
+    scene.reset()
+    er = geo.primitive("grid", "er", x=24, y=16, size=1.0)
+    me = er.data
+    for v in me.vertices:
+        x, y, _z = v.co
+        v.co.z = 0.16 * math.sin(x * 2.6) * math.cos(y * 2.1) + 0.05 * math.sin((x + y) * 6.5)
+    me.update()
+    geo.modifier(er, "SOLIDIFY", thickness=0.045, offset=0.0)
+    geo.apply_all(er)
+    geo.smooth(er, 45)
+    mat.assign(er, mat.principled("er_mem", base=(0.9, 0.94, 0.98), rough=0.4, coat=0.25, sheen=0.7, alpha=0.8))
+    _normalize(er, 1.0)
+    export.glb(OUT / "er.glb", [er])
+    cli.log("er tris", geo.triangle_count(er))
+
+
 STEPS = {
     "data": step_data,
     "proteins": step_proteins,
@@ -662,6 +766,7 @@ STEPS = {
     "layers": step_layers,
     "pano": step_pano,
     "mini": step_mini,
+    "organelles": step_organelles,
 }
 
 for name, fn in STEPS.items():

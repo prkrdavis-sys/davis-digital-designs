@@ -117,6 +117,8 @@ export function drawPanel(p: Product, cover: CanvasImageSource | undefined): THR
   ctx.fillText("Get it  \u2192", 620, 1186);
 
   const tex = new THREE.CanvasTexture(canvas);
+  // Slab UVs put v=0 at the top of the panel, opposite Three's default upload.
+  tex.flipY = false;
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 8;
   tex.generateMipmaps = true;

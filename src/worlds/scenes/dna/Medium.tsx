@@ -1,40 +1,9 @@
 "use client";
 
-import { useMemo, useRef } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useLayoutEffect, useMemo } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import type { Variant } from "@/worlds/types";
-import { pointer } from "@/lib/store";
-import { useSceneTime } from "@/components/three/engine/slot";
-
-const bgVertex = /* glsl */ `
-  varying vec2 vUv;
-  void main() { vUv = uv; gl_Position = vec4(position.xy, 0.9999, 1.0); }
-`;
-
-const bgFragment = /* glsl */ `
-  varying vec2 vUv;
-  uniform vec3 uA;
-  uniform vec3 uB;
-  uniform vec3 uC;
-  uniform float uTime;
-  uniform float uS;
-  uniform vec2 uPointer;
-  float hash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
-  float noise(vec2 p) { vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
-    return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
-  float fbm(vec2 p) { float v = 0.0; float a = 0.5; for (int i = 0; i < 5; i++) { v += a * noise(p); p *= 2.1; a *= 0.5; } return v; }
-  void main() {
-    vec2 uv = vUv + uPointer * 0.01;
-    // Cytoplasm: slow, soft, layered density.
-    float n = fbm(uv * 2.2 + vec2(uTime * 0.01, uS * 0.35));
-    float n2 = fbm(uv * 5.0 - vec2(uS * 0.2, uTime * 0.015));
-    float r = length((vUv - vec2(0.62, 0.45)) * vec2(1.4, 1.0));
-    vec3 col = mix(uA, uB, smoothstep(0.1, 1.1, r + n * 0.35));
-    col = mix(col, uC, smoothstep(0.55, 0.95, n2) * 0.35);
-    gl_FragColor = vec4(col, 1.0);
-  }
-`;
 
 const pVertex = /* glsl */ `
   attribute vec3 aSeed;
@@ -48,15 +17,14 @@ const pVertex = /* glsl */ `
   varying float vBlur;
   varying float vHue;
   void main() {
-    // Particles live in a box that wraps around the camera, so there is always depth to fly through.
     vec3 p = position * uBox + vec3(sin(uTime * 0.3 + aSeed.x * 6.28), cos(uTime * 0.23 + aSeed.y * 6.28), sin(uTime * 0.27 + aSeed.z * 6.28)) * uBox * 0.02;
     p = mod(p - uCam + uBox * 0.5, uBox) - uBox * 0.5 + uCam;
     vec4 mv = modelViewMatrix * vec4(p, 1.0);
     float depth = -mv.z;
     float coc = abs(depth - uFocus) / max(uFocus, 1e-3);
     vBlur = clamp(coc * 0.8, 0.0, 1.0);
-    float size = (0.05 + aSeed.x * 0.12) * uScale;
-    gl_PointSize = clamp(size / max(depth, 1e-3) * 900.0 * (1.0 + vBlur * 3.0), 1.0, 90.0) * uDpr;
+    float size = (0.04 + aSeed.x * 0.09) * uScale;
+    gl_PointSize = clamp(size / max(depth, 1e-3) * 900.0 * (1.0 + vBlur * 3.0), 1.0, 72.0) * uDpr;
     vAlpha = (1.0 - vBlur * 0.75) * smoothstep(0.0, 0.2 * uScale, depth) * (1.0 - smoothstep(uBox * 0.35, uBox * 0.5, depth));
     vHue = aSeed.y;
     gl_Position = projectionMatrix * mv;
@@ -73,43 +41,52 @@ const pFragment = /* glsl */ `
   void main() {
     vec2 q = gl_PointCoord - 0.5;
     float r = length(q) * 2.0;
-    // Out-of-focus particles become flat bokeh discs with a bright rim; in-focus ones are soft beads.
     float disc = smoothstep(1.0, 0.85, r);
     float bead = exp(-r * r * 4.0);
     float rim = smoothstep(0.7, 0.95, r) * disc;
     float shape = mix(bead, disc * 0.45 + rim * 0.5, vBlur);
     vec3 col = mix(uCol1, uCol2, vHue);
-    float a = shape * vAlpha * mix(0.55, 0.9, uNight);
+    float a = shape * vAlpha * mix(0.32, 0.85, uNight);
     if (a < 0.004) discard;
     gl_FragColor = vec4(col * (uNight > 0.5 ? 2.0 : 1.0), a);
   }
 `;
 
-const MEDIUM: Record<Variant, { bg: [string, string, string]; p1: string; p2: string }> = {
-  day: { bg: ["#fbf3ea", "#d9cbe3", "#ffe9dc"], p1: "#ffffff", p2: "#f1ddf7" },
-  night: { bg: ["#050a1c", "#010208", "#0b1a3a"], p1: "#6fb4ff", p2: "#3dff9a" },
+export const CYTOSOL: Record<Variant, { fog: string; hazeA: string; hazeB: string }> = {
+  day: { fog: "#e4eef0", hazeA: "#cbb8c2", hazeB: "#f0ddd8" },
+  night: { fog: "#050814", hazeA: "#6fb4ff", hazeB: "#3dff9a" },
 };
 
-const COUNT = 1400;
+/** How far the camera is from the helix axis, in nm. */
+export function cameraSpan(cam: THREE.Vector3) {
+  return Math.max(8, Math.hypot(cam.x, cam.z));
+}
 
-/** The cytoplasm: soft backdrop, drifting bokeh particles, depth haze. */
+/** Fog thickens nearby when the camera is close, and opens up on the cellular pullback. */
+export function fogDensity(dist: number) {
+  return 1 / Math.max(220, dist * 1.15);
+}
+
+const COUNT = 1100;
+
+/** Watery cytosol: exponential fog plus a protein haze that wraps the camera. */
 export function Medium({ variant }: { variant: Variant }) {
-  const time = useSceneTime();
-  const bg = useRef<THREE.ShaderMaterial>(null);
-  const pts = useRef<THREE.ShaderMaterial>(null);
-  const pal = MEDIUM[variant];
+  const scene = useThree((s) => s.scene);
+  const pal = CYTOSOL[variant];
+  const night = variant === "night";
+  const color = useMemo(() => new THREE.Color(pal.fog), [pal.fog]);
+  const fog = useMemo(() => new THREE.FogExp2(color, 0.01), [color]);
 
-  const bgUniforms = useMemo(
-    () => ({
-      uA: { value: new THREE.Color(pal.bg[0]) },
-      uB: { value: new THREE.Color(pal.bg[1]) },
-      uC: { value: new THREE.Color(pal.bg[2]) },
-      uTime: { value: 0 },
-      uS: { value: 0 },
-      uPointer: { value: new THREE.Vector2() },
-    }),
-    [pal],
-  );
+  useLayoutEffect(() => {
+    const prevBg = scene.background;
+    const prevFog = scene.fog;
+    scene.background = color;
+    scene.fog = fog;
+    return () => {
+      scene.background = prevBg;
+      scene.fog = prevFog;
+    };
+  }, [scene, color, fog]);
 
   const geometry = useMemo(() => {
     const g = new THREE.BufferGeometry();
@@ -132,21 +109,18 @@ export function Medium({ variant }: { variant: Variant }) {
       uFocus: { value: 4 },
       uDpr: { value: 1 },
       uScale: { value: 1 },
-      uCol1: { value: new THREE.Color(pal.p1) },
-      uCol2: { value: new THREE.Color(pal.p2) },
-      uNight: { value: variant === "night" ? 1 : 0 },
+      uCol1: { value: new THREE.Color(pal.hazeA) },
+      uCol2: { value: new THREE.Color(pal.hazeB) },
+      uNight: { value: night ? 1 : 0 },
     }),
-    [pal, variant],
+    [pal, night],
   );
 
   useFrame((state, dt) => {
     const d = Math.min(dt, 0.05);
-    bgUniforms.uTime.value += d;
-    bgUniforms.uS.value = time.s;
-    bgUniforms.uPointer.value.set(pointer.sx, pointer.sy);
     const cam = state.camera;
-    // Particle box scales with how far we are from the molecule (molecular -> cellular).
-    const dist = Math.max(3, Math.hypot(cam.position.x, cam.position.z));
+    const dist = cameraSpan(cam.position);
+    fog.density = fogDensity(dist);
     const scale = Math.min(200, dist / 4);
     pUniforms.uCam.value.copy(cam.position);
     pUniforms.uBox.value = 34 * scale;
@@ -157,24 +131,15 @@ export function Medium({ variant }: { variant: Variant }) {
   });
 
   return (
-    <>
-      <mesh frustumCulled={false} renderOrder={-10}>
-        <planeGeometry args={[2, 2]} />
-        <shaderMaterial ref={bg} vertexShader={bgVertex} fragmentShader={bgFragment} uniforms={bgUniforms} depthWrite={false} depthTest={false} />
-      </mesh>
-      <points geometry={geometry} frustumCulled={false} renderOrder={5}>
-        <shaderMaterial
-          ref={pts}
-          vertexShader={pVertex}
-          fragmentShader={pFragment}
-          uniforms={pUniforms}
-          transparent
-          depthWrite={false}
-          blending={variant === "night" ? THREE.AdditiveBlending : THREE.NormalBlending}
-        />
-      </points>
-    </>
+    <points geometry={geometry} frustumCulled={false} renderOrder={4}>
+      <shaderMaterial
+        vertexShader={pVertex}
+        fragmentShader={pFragment}
+        uniforms={pUniforms}
+        transparent
+        depthWrite={false}
+        blending={night ? THREE.AdditiveBlending : THREE.NormalBlending}
+      />
+    </points>
   );
 }
-
-export { MEDIUM };

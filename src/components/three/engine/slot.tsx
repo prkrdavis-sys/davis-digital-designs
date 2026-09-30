@@ -168,7 +168,10 @@ function createHandle(id: SceneId, quality: Quality): SlotHandle {
       const target = ensureOutput(buffer.x, buffer.y, false);
       if (!composer || dirty) {
         composer?.dispose();
-        composer = new EffectComposer(gl, { frameBufferType: THREE.HalfFloatType, multisampling: samples });
+        // MSAA on these half-float buffers breaks after bloom switches render
+        // targets: small geometry (paper planes, the trail head, point lights)
+        // comes back as black blocks. The scene is antialiased on the no-effects path instead.
+        composer = new EffectComposer(gl, { frameBufferType: THREE.HalfFloatType, multisampling: 0 });
         composer.autoRenderToScreen = false;
         composer.addPass(new RenderPass(scene, camera));
         composer.addPass(new EffectPass(camera, ...effects));
