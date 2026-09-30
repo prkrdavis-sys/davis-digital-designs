@@ -12,9 +12,9 @@ from look import lin
 S_MAX = 2.2
 PAD_H = 0.07
 PAD_R = 0.52
-POND = {"cx": 0.16, "cy": 0.04, "rx": 1.62, "ry": 1.28, "z": 0.055}
-TABLE_R = 8.7
-TABLE_H = 0.2
+POND = {"cx": 0.05, "cy": 0.12, "rx": 2.15, "ry": 1.72, "z": 0.05}
+TABLE_R = 8.4
+TABLE_H = 0.22
 
 # Journey order around the pond, then three satellite islets.
 # id, x, y, yaw_deg, placeholder kind, palette hex (day, night, glow)

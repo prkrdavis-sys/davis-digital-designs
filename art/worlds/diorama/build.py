@@ -58,17 +58,19 @@ def ellipse(x, y, cx, cy, rx, ry):
 
 
 def island_field(x, y):
-    """Positive inside land. Main kidney + three islets + bridge causeways."""
-    e1 = 1.0 - ellipse(x, y, 0.32, -0.42, 4.95, 4.45)
-    e2 = 1.0 - ellipse(x, y, -0.55, 1.28, 3.85, 3.55)
-    main = max(e1, e2) - 0.1 * max(0.0, 1.0 - ellipse(x, y, 3.4, 3.9, 2.1, 1.9))
-    ev = 1.0 - ellipse(x, y, 0.38, 6.48, 1.58, 1.42)
-    du = 1.0 - ellipse(x, y, -6.18, -3.78, 1.52, 1.36)
-    pl = 1.0 - ellipse(x, y, 6.38, -2.32, 1.36, 1.22)
-    b_ev = 1.0 - ellipse(x, y, 0.75, 4.95, 0.55, 1.55)
-    b_du = 1.0 - ellipse(x, y, -4.75, -2.75, 1.55, 0.48)
-    b_pl = 1.0 - ellipse(x, y, 4.45, -3.05, 1.55, 0.42)
-    return max(main, ev, du, pl, b_ev * 0.85, b_du * 0.85, b_pl * 0.85)
+    """Positive inside land. Offset lobes + noisy coast, three islets, causeways."""
+    e1 = 1.0 - ellipse(x, y, 1.55, -1.85, 3.35, 2.75)
+    e2 = 1.0 - ellipse(x, y, -1.85, 1.55, 3.15, 2.65)
+    main = max(e1, e2) + 0.14 * n2(x, y, 0.32)
+    bite = max(0.0, 1.0 - ellipse(x, y, 3.6, 3.4, 1.9, 1.7))
+    main -= 0.28 * bite
+    ev = 1.0 - ellipse(x, y, 0.38, 6.48, 1.52, 1.38)
+    du = 1.0 - ellipse(x, y, -6.18, -3.78, 1.48, 1.32)
+    pl = 1.0 - ellipse(x, y, 6.38, -2.32, 1.32, 1.18)
+    b_ev = 1.0 - ellipse(x, y, 0.55, 4.55, 0.48, 1.35)
+    b_du = 1.0 - ellipse(x, y, -4.55, -2.85, 1.45, 0.42)
+    b_pl = 1.0 - ellipse(x, y, 4.35, -2.95, 1.45, 0.38)
+    return max(main, ev, du, pl, b_ev * 0.9, b_du * 0.9, b_pl * 0.9)
 
 
 def pond_field(x, y):
@@ -79,18 +81,18 @@ def height_at(x, y, presence=None):
     p = island_field(x, y) if presence is None else presence
     if p <= 0.0:
         return -0.02
-    h = 0.10 + 0.22 * max(0.0, p) ** 1.15 + 0.045 * n2(x, y, 0.55)
+    h = 0.08 + 0.34 * max(0.0, p) ** 1.05 + 0.08 * n2(x, y, 0.48)
     for pid, px, py, *_ in L.PLOTS:
         d2 = (x - px) ** 2 + (y - py) ** 2
-        h += 0.10 * math.exp(-d2 / (0.72 if pid in ("everest", "dunes", "planes") else 0.95))
+        h += 0.16 * math.exp(-d2 / (0.62 if pid in ("everest", "dunes", "planes") else 0.88))
     pond = pond_field(x, y)
     if pond > 0.0:
         bowl = min(1.0, pond)
         h = h * (1.0 - bowl * 0.92) + 0.012 * bowl
     if 0.0 < p < 0.22:
-        h += 0.07 * (p / 0.22) * (1.0 - p / 0.22) * 4.0
+        h += 0.09 * (p / 0.22) * (1.0 - p / 0.22) * 4.0
     if pid_near_everest(x, y):
-        h += 0.18 * max(0.0, 1.0 - ellipse(x, y, 0.38, 6.48, 0.85, 0.75))
+        h += 0.28 * max(0.0, 1.0 - ellipse(x, y, 0.38, 6.48, 0.85, 0.75))
     return h
 
 
@@ -111,7 +113,7 @@ def make_island(name="island", res=86, extent=9.4):
         x, y = v.co.x, v.co.y
         p = island_field(x, y)
         v.co.z = height_at(x, y, p) if p > -0.04 else -0.06
-    dead = [f for f in bm.faces if sum(1 for v in f.verts if island_field(v.co.x, v.co.y) < -0.03) >= 3]
+    dead = [f for f in bm.faces if sum(1 for v in f.verts if island_field(v.co.x, v.co.y) < -0.03 or pond_field(v.co.x, v.co.y) > 0.28) >= 3]
     if dead:
         bmesh.ops.delete(bm, geom=dead, context="FACES")
     loose = [v for v in bm.verts if not v.link_faces]
@@ -142,15 +144,12 @@ def make_table():
 
 
 def make_pond():
-    o = geo.primitive("grid", "pond", x=28, y=22, size=1.0)
-    sx, sy = L.POND["rx"] * 1.02, L.POND["ry"] * 1.02
-    o.scale = (sx, sy, 1.0)
+    o = geo.primitive("cylinder", "pond", radius=1.0, depth=0.05, segments=48)
+    sx, sy = L.POND["rx"] * 1.08, L.POND["ry"] * 1.08
+    o.data.transform(Matrix.Diagonal((sx, sy, 1.0, 1.0)))
     o.location = (L.POND["cx"], L.POND["cy"], L.POND["z"])
-    geo.apply_all(o)
-    for v in o.data.vertices:
-        x = o.location.x + v.co.x
-        y = o.location.y + v.co.y
-        v.co.z += 0.008 * n2(x * 2.2, y * 2.2)
+    bpy.context.view_layer.update()
+    cli.log("pond dims", [round(x, 3) for x in o.dimensions], "at", [round(x, 3) for x in o.location])
     return o
 
 
@@ -162,25 +161,28 @@ def _polyline_pts(xy, z_fn, n=None):
 
 
 def make_path(xy, name, radius=0.15):
-    def z(x, y):
-        return max(L.POND["z"] + 0.02, height_at(x, y) + 0.012)
-
     dense = []
     for i in range(len(xy) - 1):
         a, b = xy[i], xy[i + 1]
-        steps = max(3, int(math.hypot(b[0] - a[0], b[1] - a[1]) / 0.28))
+        steps = max(3, int(math.hypot(b[0] - a[0], b[1] - a[1]) / 0.26))
         for k in range(steps):
             t = k / steps
             dense.append((a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t))
     dense.append(xy[-1])
-    o = geo.tube(name, _polyline_pts(dense, z), radius=radius, segments=8, caps=True)
-    # Flatten into a gravel ribbon.
-    for v in o.data.vertices:
-        v.co.z = (v.co.z - o.location.z) * 0.18 + o.location.z
-    # Re-seat onto terrain after flatten (tube was built in world space).
+    pts = []
+    for x, y in dense:
+        if pond_field(x, y) > 0.15:
+            continue
+        if island_field(x, y) < 0.04:
+            continue
+        pts.append((x, y, height_at(x, y) + 0.02))
+    if len(pts) < 2:
+        return None
+    o = geo.tube(name, pts, radius=radius, segments=7, caps=True)
     geo.set_origin_world(o)
     for v in o.data.vertices:
-        v.co.z = z(v.co.x, v.co.y) + 0.006
+        ground = height_at(v.co.x, v.co.y) + 0.016
+        v.co.z = ground + max(-0.02, min(0.03, (v.co.z - ground) * 0.25))
     geo.smooth(o, 70)
     return o
 
@@ -227,13 +229,20 @@ def make_tree(name, kind, scale):
 def place_trees():
     out = []
     n = 0
-    for i in range(48):
-        a = i / 48 * math.tau + 0.27
-        r = 4.15 + 0.35 * math.sin(i * 2.3)
-        x, y = r * math.cos(a) * 1.04, r * math.sin(a) * 0.92
-        if island_field(x, y) < 0.18 or pond_field(x, y) > 0.05:
+    for i in range(56):
+        a = i / 56 * math.tau + 0.27
+        x = y = None
+        for r in (6.4, 5.7, 5.0, 4.3, 3.6, 3.0):
+            tx, ty = r * math.cos(a), r * math.sin(a) * 0.95
+            if island_field(tx, ty) > 0.2 and pond_field(tx, ty) < 0.0:
+                if any((tx - p[1]) ** 2 + (ty - p[2]) ** 2 < 0.85 for p in L.PLOTS):
+                    continue
+                x, y = tx, ty
+                break
+        if x is None:
             continue
-        if any((x - p[1]) ** 2 + (y - p[2]) ** 2 < 0.85 for p in L.PLOTS):
+        # Keep the CTA close-up clear of foreground trees.
+        if x > 1.2 and y < -2.6:
             continue
         kind = "pine" if i % 3 else "round"
         o = make_tree(f"tree_{n}", kind, 0.85 + (i % 5) * 0.08)
@@ -320,17 +329,52 @@ def make_lilies():
     return out
 
 
+def make_flowers():
+    out = []
+    colors = [look.lin(c) for c in ("#ff7fb2", "#ffcf4d", "#9dbcff", "#ff9f86", "#8fe0bd")]
+    n = 0
+    for i in range(70):
+        a = i * 2.399 + 0.4
+        r = 2.35 + (i % 7) * 0.18
+        x, y = L.POND["cx"] + math.cos(a) * r, L.POND["cy"] + math.sin(a) * r * 0.82
+        if island_field(x, y) < 0.2 or pond_field(x, y) > 0.02:
+            continue
+        if any((x - p[1]) ** 2 + (y - p[2]) ** 2 < 0.55 for p in L.PLOTS):
+            continue
+        bloom = geo.primitive("ico", f"flower_{n}", radius=0.045 + (i % 3) * 0.008, subdiv=1)
+        bloom.location = (x, y, height_at(x, y) + 0.04)
+        mat.assign(bloom, look.glossy_toy(f"flower_m_{n}", colors[i % 5]))
+        out.append(bloom)
+        n += 1
+    return out
+
+
+def make_reeds():
+    out = []
+    for i in range(16):
+        a = i / 16 * math.tau + 0.2
+        x = L.POND["cx"] + math.cos(a) * (L.POND["rx"] + 0.12)
+        y = L.POND["cy"] + math.sin(a) * (L.POND["ry"] + 0.12)
+        if island_field(x, y) < 0.05:
+            continue
+        reed = geo.primitive("cylinder", f"reed_{i}", radius=0.012, depth=0.16 + (i % 4) * 0.03, segments=5)
+        reed.location = (x, y, L.POND["z"] + 0.1)
+        mat.assign(reed, look.foliage(f"reed_{i}", look.lin("#4a7a38"), "day"))
+        out.append(reed)
+    return out
+
+
 def make_dock():
     boards = []
     for i in range(4):
         b = geo.primitive("cube", f"dock_{i}", size=1.0)
         b.scale = (0.18, 0.55, 0.035)
-        b.location = (1.35, -0.15 + i * 0.02, L.POND["z"] + 0.03)
+        b.location = (L.POND["cx"] + L.POND["rx"] * 0.72, L.POND["cy"] - 0.85 + i * 0.02, height_at(L.POND["cx"] + L.POND["rx"] * 0.72, L.POND["cy"] - 0.85) + 0.03)
         b.rotation_euler.z = math.radians(-18)
         geo.apply_all(b)
         boards.append(b)
     post = geo.primitive("cylinder", "dock_post", radius=0.03, depth=0.28, segments=8)
-    post.location = (1.55, -0.35, L.POND["z"] + 0.1)
+    post.location = (L.POND["cx"] + L.POND["rx"] * 0.82, L.POND["cy"] - 1.05, height_at(L.POND["cx"] + L.POND["rx"] * 0.82, L.POND["cy"] - 1.05) + 0.12)
     return geo.join(boards + [post], "dock")
 
 
@@ -426,7 +470,14 @@ def _placeholder_mesh(pid, kind, color, glow, night):
 
 def _import_mini(path, pid):
     before = set(bpy.data.objects)
-    bpy.ops.import_scene.gltf(filepath=str(path))
+    try:
+        bpy.ops.import_scene.gltf(filepath=str(path))
+    except RuntimeError as exc:
+        cli.log("mini import failed", pid, exc)
+        leftover = [o for o in bpy.data.objects if o not in before]
+        for o in leftover:
+            bpy.data.objects.remove(o, do_unlink=True)
+        return None
     new = [o for o in bpy.data.objects if o not in before]
     meshes = [o for o in new if o.type == "MESH"]
     empties = [o for o in new if o.type != "MESH"]
@@ -441,10 +492,17 @@ def _import_mini(path, pid):
     for e in empties:
         if e.name in bpy.data.objects:
             bpy.data.objects.remove(e, do_unlink=True)
-    # Sit on z=0, keep authored scale. Nudge if the importer left it floating.
-    lo = min((o.matrix_world @ Vector(c)).z for c in o.bound_box)
-    if abs(lo) > 0.02:
-        o.location.z -= lo
+    geo.set_origin_world(o)
+    bpy.context.view_layer.update()
+    bb = [o.matrix_world @ Vector(c) for c in o.bound_box]
+    extent = max(max(v[i] for v in bb) - min(v[i] for v in bb) for i in range(3))
+    if extent > 1.05:
+        o.data.transform(Matrix.Scale(0.92 / extent, 4))
+        bpy.context.view_layer.update()
+        bb = [o.matrix_world @ Vector(c) for c in o.bound_box]
+    lo = min(v.z for v in bb)
+    o.location.z -= lo
+    cli.log("mini size", pid, "extent", round(extent, 3))
     export.tag(o, plot=pid, placeholder=False)
     return o
 
@@ -504,22 +562,26 @@ def assign_static(parts, variant):
         mat.assign(ln, iron)
         if ln.data.materials:
             ln.data.materials.append(glass)
-    mat.assign(parts["water"], look.water(f"water_{variant}", look.lin("#4a6fa0" if not night else "#0a1224"), rough=0.05 if not night else 0.08))
+        mat.assign(parts["water"], look.water(f"water_{variant}", look.lin("#3a7ab0" if not night else "#102040"), rough=0.08 if not night else 0.14))
 
 
 def build_static():
     island = make_island()
     table = make_table()
     water = make_pond()
-    paths = [make_path(L.PATH, "path_main", 0.155)]
+    paths = [p for p in [make_path(L.PATH, "path_main", 0.155)] if p]
     for i, (a, b) in enumerate(L.SPURS):
-        paths.append(make_path([a, b], f"path_spur_{i}", 0.11))
+        p = make_path([a, b], f"path_spur_{i}", 0.11)
+        if p:
+            paths.append(p)
     bridges = [make_bridge(a, b, f"bridge_{i}") for i, (a, b) in enumerate(L.SPURS)]
     trees = place_trees()
     pads = [make_pad(f"pad_{p[0]}", p[1], p[2]) for p in L.PLOTS]
     lanterns = [make_lantern(f"lantern_{i}", x, y) for i, (x, y) in enumerate(lantern_sites())]
     rocks = make_rocks()
     lilies = make_lilies()
+    flowers = make_flowers()
+    reeds = make_reeds()
     dock = make_dock()
     return {
         "island": island,
@@ -532,12 +594,14 @@ def build_static():
         "lanterns": lanterns,
         "rocks": rocks,
         "lilies": lilies,
+        "flowers": flowers,
+        "reeds": reeds,
         "dock": dock,
     }
 
 
 def static_list(parts):
-    out = [parts["island"], parts["table"], parts["dock"], *parts["paths"], *parts["bridges"], *parts["trees"], *parts["pads"], *parts["lanterns"], *parts["rocks"], *parts["lilies"]]
+    out = [parts["island"], parts["table"], parts["dock"], *parts["paths"], *parts["bridges"], *parts["trees"], *parts["pads"], *parts["lanterns"], *parts["rocks"], *parts["lilies"], *parts["flowers"], *parts["reeds"]]
     return [o for o in out if o is not None]
 
 
@@ -565,12 +629,12 @@ def rail_keys():
         (0.00, 232, 2.55, 1.38, g, 0.32, 36, -2.0),
         (0.32, 208, 2.70, 1.52, g, 0.30, 37, -1.2),
         (0.62, 182, 3.15, 1.85, g.lerp(c, 0.15), 0.26, 38, -0.4),
-        (0.92, 155, 4.40, 2.85, g.lerp(c, 0.45), 0.18, 37, 0.2),
-        (1.18, 128, 6.10, 4.05, c, 0.08, 36, 0.4),
-        (1.48, 102, 7.80, 5.35, c, 0.03, 34, 0.2),
-        (1.78, 80, 9.40, 6.55, c, 0.00, 33, 0.0),
-        (2.00, 66, 10.80, 7.45, c, 0.00, 32, 0.0),
-        (2.20, 56, 11.60, 8.05, c, 0.00, 31, 0.0),
+        (0.92, 155, 4.60, 2.55, g.lerp(c, 0.45), 0.18, 37, 0.2),
+        (1.18, 128, 6.40, 3.15, c, 0.08, 36, 0.4),
+        (1.48, 102, 8.40, 4.05, c, 0.03, 34, 0.2),
+        (1.78, 78, 10.60, 5.05, c, 0.00, 33, 0.0),
+        (2.00, 62, 13.20, 5.65, c, 0.00, 32, 0.0),
+        (2.20, 52, 14.20, 6.05, c, 0.00, 31, 0.0),
     ]
     keys = []
     for s, az, r, h, sub, shift, fov, roll in raw:
@@ -595,7 +659,7 @@ def stage(variant, samples=None):
     sc = scene.cycles(samples=samples or args.samples or (20 if args.preview else 48), bounces=6, res=(1920, 1200))
     sc.cycles.transmission_bounces = 10
     if variant == "day":
-        scene.view("AgX", look="AgX - Medium High Contrast", exposure=0.15)
+        scene.view("AgX", look="AgX - Medium High Contrast", exposure=-0.05)
     else:
         scene.view("AgX", look="AgX - High Contrast", exposure=0.25)
     look.studio(variant, HDRI if HDRI.exists() else None)
@@ -668,7 +732,7 @@ def step_bake():
         sc, cam, parts, minis = stage(variant)
         # Hide live water and minis from the joined atlas (they stay real-time).
         static = static_list(parts)
-        joined = bake.bake_group(static, f"terrain_{variant}", OUT / "bake", size=2048, samples=args.samples or (64 if args.preview else 96), roughness=0.62)
+        joined = bake.bake_group(static, f"terrain_{variant}", OUT / "bake", size=2048, samples=args.samples or (48 if args.preview else 72), roughness=0.62)
         export.tag(joined, kind="baked", variant=variant)
         export.glb(OUT / f"terrain-{variant}.glb", [joined])
 
@@ -676,8 +740,8 @@ def step_bake():
 def bands_for(cam, parts, minis):
     cpos = cam.matrix_world.translation
     fwd = (cam.matrix_world.to_quaternion() @ Vector((0, 0, -1))).normalized()
-    bands = {"back": [parts["table"]], "mid": [parts["island"], parts["water"], parts["dock"], *parts["paths"], *parts["bridges"], *parts["lilies"]], "front": []}
-    rest = [*parts["trees"], *parts["pads"], *parts["lanterns"], *parts["rocks"], *minis]
+    bands = {"back": [parts["table"]], "mid": [parts["island"], parts["water"], parts["dock"], *parts["paths"], *parts["bridges"], *parts["lilies"], *parts["reeds"]], "front": []}
+    rest = [*parts["trees"], *parts["pads"], *parts["lanterns"], *parts["rocks"], *parts["flowers"], *minis]
     for o in rest:
         corners = [o.matrix_world @ Vector(cn) for cn in o.bound_box]
         cen = sum(corners, Vector()) / 8

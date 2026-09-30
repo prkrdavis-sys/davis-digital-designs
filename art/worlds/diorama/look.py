@@ -20,13 +20,13 @@ def _link(m, a, b):
 
 SKY = {
     "day": [
-        (0.0, lin("#ffc9a0")),
-        (0.46, lin("#ffd4b4")),
-        (0.52, lin("#ffb48a")),
-        (0.58, lin("#f08a7a")),
-        (0.72, lin("#c97ec8")),
-        (0.86, lin("#7f9ad8")),
-        (1.0, lin("#5c78c4")),
+        (0.0, lin("#ffb080")),
+        (0.44, lin("#ff9a6a")),
+        (0.50, lin("#ff6e4a")),
+        (0.56, lin("#e85a78")),
+        (0.68, lin("#8a5aaa")),
+        (0.84, lin("#4a5aaa")),
+        (1.0, lin("#2a3a78")),
     ],
     "night": [
         (0.0, lin("#0a0818")),
@@ -125,8 +125,8 @@ def gradient_world(variant, strength=1.0, stars=0.0, hdri=None, hdri_strength=0.
 
 def grass(name, variant):
     night = variant == "night"
-    lo = lin("#1c3a22") if night else lin("#2f5a28")
-    hi = lin("#3d6a48") if night else lin("#8fbf55")
+    lo = lin("#142418") if night else lin("#1f4a20")
+    hi = lin("#2a4a32") if night else lin("#5a9a38")
     m = mat.principled(name, base=hi, rough=0.78, sheen=0.55, sheen_rough=0.55, specular=0.28)
     ramp = mat.noise_color_node(m, scale=7.5, detail=8.0, roughness=0.6, colors=(lo, hi), positions=(0.32, 0.72), coord="Object")
     _link(m, ramp.outputs["Color"], mat.bsdf_of(m).inputs["Base Color"])
@@ -181,16 +181,17 @@ def wood(name, color, rough=0.55):
 
 
 def path_gravel(name, variant):
-    lo = lin("#5a4634") if variant == "night" else lin("#c4a578")
-    hi = lin("#8a7054") if variant == "night" else lin("#e6d2a8")
+    lo = lin("#3a2a1c") if variant == "night" else lin("#8a6a3c")
+    hi = lin("#5a4030") if variant == "night" else lin("#c4a06a")
     m = mat.principled(name, base=hi, rough=0.86, sheen=0.12)
     ramp = mat.noise_color_node(m, scale=28.0, detail=10.0, roughness=0.7, colors=(lo, hi), positions=(0.35, 0.7))
     _link(m, ramp.outputs["Color"], mat.bsdf_of(m).inputs["Base Color"])
     return m
 
 
-def water(name, tint, rough=0.04, ripple=0.03):
-    m = mat.principled(name, base=tint, rough=rough, ior=1.333, specular=1.0, transmission=0.55, coat=0.35, coat_rough=0.08)
+def water(name, tint, rough=0.06, ripple=0.035):
+    # Opaque glossy pool so Cycles stills never punch through to a checker.
+    m = mat.principled(name, base=tint, rough=rough, ior=1.333, specular=1.0, metal=0.08, coat=0.55, coat_rough=0.06)
     nt = m.node_tree
     tc = nt.nodes.new("ShaderNodeTexCoord")
     nz = nt.nodes.new("ShaderNodeTexNoise")
@@ -242,11 +243,11 @@ def studio(variant, hdri=None):
     )
     if not night:
         # Warm sunset key from the SW, peach bounce, cool fill.
-        scene.sun_light("sun", rot_deg=(66, 0, 48), strength=5.4, color=(1.0, 0.74, 0.48), angle_deg=2.8)
-        scene.area_light("key", (7.5, -8.5, 8.5), rot_deg=(52, 0, 42), size=7.0, power=2800, color=(1.0, 0.82, 0.62))
-        scene.area_light("fill", (-9.0, -3.0, 5.5), rot_deg=(70, 0, -70), size=9.0, power=900, color=(0.72, 0.82, 1.0))
-        scene.area_light("bounce", (1.0, 9.0, 2.2), rot_deg=(105, 0, 180), size=10.0, power=700, color=(1.0, 0.55, 0.62))
-        scene.area_light("rim", (-6.0, 8.0, 6.0), rot_deg=(40, 0, -140), size=6.0, power=1100, color=(1.0, 0.7, 0.95))
+        scene.sun_light("sun", rot_deg=(72, 0, 52), strength=3.6, color=(1.0, 0.62, 0.38), angle_deg=3.4)
+        scene.area_light("key", (7.5, -8.5, 7.2), rot_deg=(56, 0, 42), size=6.5, power=1600, color=(1.0, 0.72, 0.48))
+        scene.area_light("fill", (-9.0, -3.0, 5.0), rot_deg=(70, 0, -70), size=9.0, power=480, color=(0.62, 0.72, 1.0))
+        scene.area_light("bounce", (1.0, 9.0, 2.0), rot_deg=(105, 0, 180), size=10.0, power=520, color=(1.0, 0.42, 0.55))
+        scene.area_light("rim", (-6.0, 8.0, 5.5), rot_deg=(40, 0, -140), size=6.0, power=700, color=(1.0, 0.55, 0.85))
     else:
         scene.sun_light("moon", rot_deg=(48, 0, -28), strength=0.42, color=(0.55, 0.66, 1.0), angle_deg=2.2)
         scene.area_light("moon_fill", (-7.0, 5.0, 10.0), rot_deg=(28, 0, -130), size=10.0, power=220, color=(0.5, 0.6, 1.0))
