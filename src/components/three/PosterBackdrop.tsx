@@ -72,7 +72,7 @@ export function PosterBackdrop({ live }: { live: boolean }) {
       pick();
       const canvas = document.querySelector<HTMLCanvasElement>("canvas[data-engine]");
       const primary = engine.primaryScene;
-      setCovered(live && Boolean(canvas && canvas.style.opacity === "1" && primary && engine.readyScenes.has(primary)));
+      setCovered(live && Boolean(canvas && Number(canvas.style.opacity) >= 0.999 && primary && engine.readyScenes.has(primary)));
     }, 700);
     return () => {
       alive = false;

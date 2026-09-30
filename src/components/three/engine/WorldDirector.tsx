@@ -137,7 +137,7 @@ export function WorldDirector() {
   }, -1);
 
   // Render + composite. Priority 1 takes over R3F's default render.
-  useFrame((state) => {
+  useFrame((state, dt) => {
     const gl = state.gl;
     const size = state.size;
     gl.getDrawingBufferSize(bufferSize);
@@ -201,7 +201,9 @@ export function WorldDirector() {
     comp.render(gl);
 
     const want = first ? 1 : 0;
-    const next = opacity.current + (want - opacity.current) * 0.08;
+    // Wall-clock fade: a heavy scene still appears within a beat, even when a frame takes a long time.
+    const step = 1 - Math.exp(-dt * 5);
+    const next = opacity.current + (want - opacity.current) * step;
     if (Math.abs(next - opacity.current) > 0.002 || (want === 1 && opacity.current < 1)) {
       opacity.current = Math.abs(want - next) < 0.003 ? want : next;
       gl.domElement.style.opacity = opacity.current.toFixed(3);

@@ -73,7 +73,7 @@ function Hi({ variant, mode }: SceneComponentProps) {
       <Sky variant={variant} />
       <hemisphereLight args={[L.hemi[0], L.hemi[1], L.hemi[2]]} />
       <directionalLight position={sun.clone().multiplyScalar(100)} color={sky(variant).light.color} intensity={L.key} />
-      {false && <Clouds variant={variant} flow={flow} />}
+      <Clouds variant={variant} flow={flow} />
       <Wisps variant={variant} flow={flow} />
       <Flock variant={variant} flow={flow} />
       {mode === "parked" && <CoverPanel width={1.5} anchor="camera" offset={[0.72, 0.04, 3.1]} rotation={[0, -0.34, 0]} frame={night ? "#2b2f66" : "#fff4ea"} glow={night ? 1.3 : 1.08} />}
