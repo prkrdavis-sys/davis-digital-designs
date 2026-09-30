@@ -59,6 +59,13 @@ def bake_group(objs, name, out_dir, size=2048, samples=384, margin=12, keep_uv_o
     joined = geo.join(objs, name) if len(objs) > 1 else objs[0]
     joined.name = name
     uv = unwrap_atlas(joined)
+    # Blender 5.2 can return a non-UTF-8 uv.name after a large join.
+    uv_name = "bake"
+    try:
+        if uv.name != uv_name:
+            uv.name = uv_name
+    except UnicodeDecodeError:
+        pass
     rough = roughness if roughness is not None else sum(_roughness_of(m) for m in joined.data.materials if m) / max(1, len(joined.data.materials))
 
     img = bpy.data.images.new(f"{name}_bake", size, size, alpha=False, float_buffer=True)
@@ -70,7 +77,7 @@ def bake_group(objs, name, out_dir, size=2048, samples=384, margin=12, keep_uv_o
         tex = nt.nodes.new("ShaderNodeTexImage")
         tex.image = img
         uvn = nt.nodes.new("ShaderNodeUVMap")
-        uvn.uv_map = uv.name
+        uvn.uv_map = uv_name
         nt.links.new(uvn.outputs[0], tex.inputs["Vector"])
         for n in nt.nodes:
             n.select = False
@@ -91,14 +98,18 @@ def bake_group(objs, name, out_dir, size=2048, samples=384, margin=12, keep_uv_o
 
     baked = mat.principled(f"{name}_baked", base=(0, 0, 0), rough=rough, metal=metal, specular=0.5)
     b = mat.bsdf_of(baked)
-    t = mat.image_node(baked, path, "sRGB", uv_map=uv.name)
+    t = mat.image_node(baked, path, "sRGB", uv_map=uv_name)
     baked.node_tree.links.new(t.outputs["Color"], b.inputs["Emission Color"])
     b.inputs["Emission Strength"].default_value = EMISSIVE_HEADROOM * (2.0 ** (-exposure - 1.0))
     joined.data.materials.clear()
     joined.data.materials.append(baked)
     if keep_uv_only:
         for layer in list(joined.data.uv_layers):
-            if layer.name != uv.name:
+            try:
+                keep = layer.name == uv_name
+            except UnicodeDecodeError:
+                keep = False
+            if not keep:
                 joined.data.uv_layers.remove(layer)
     return joined
 
