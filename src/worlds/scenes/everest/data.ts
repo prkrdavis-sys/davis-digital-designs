@@ -1,3 +1,5 @@
+import * as THREE from "three";
+
 /**
  * Runtime mirror of art/worlds/everest (geo.mjs, route.mjs, build.py). The
  * build writes the terrain grid metadata, a quarter-resolution heightfield and
@@ -111,6 +113,76 @@ export function elevationAt(data: EverestData, x: number, z: number): number | n
 export function groundY(data: EverestData, x: number, z: number): number {
   const m = elevationAt(data, x, z);
   return m === null ? 0 : (m * data.meta.exag) / data.meta.unit;
+}
+
+const heightTextures = new WeakMap<EverestData, THREE.DataTexture>();
+
+/** Chamfer distance (in grid cells) from every heightfield cell to the nearest route point. */
+function routeDistanceCells(data: EverestData): Float32Array {
+  const { w, h } = data.meta.heightBin;
+  const [hx, hz] = halfExtent(data.meta);
+  const d = new Float32Array(w * h).fill(1e6);
+  for (const p of data.route.points) {
+    const x = Math.round(((p[0] + hx) / (2 * hx)) * (w - 1));
+    const y = Math.round(((p[2] + hz) / (2 * hz)) * (h - 1));
+    if (x >= 0 && y >= 0 && x < w && y < h) d[y * w + x] = 0;
+  }
+  const a = 1;
+  const b = Math.SQRT2;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      let v = d[i];
+      if (x > 0) v = Math.min(v, d[i - 1] + a);
+      if (y > 0) {
+        v = Math.min(v, d[i - w] + a);
+        if (x > 0) v = Math.min(v, d[i - w - 1] + b);
+        if (x < w - 1) v = Math.min(v, d[i - w + 1] + b);
+      }
+      d[i] = v;
+    }
+  }
+  for (let y = h - 1; y >= 0; y--) {
+    for (let x = w - 1; x >= 0; x--) {
+      const i = y * w + x;
+      let v = d[i];
+      if (x < w - 1) v = Math.min(v, d[i + 1] + a);
+      if (y < h - 1) {
+        v = Math.min(v, d[i + w] + a);
+        if (x < w - 1) v = Math.min(v, d[i + w + 1] + b);
+        if (x > 0) v = Math.min(v, d[i + w - 1] + b);
+      }
+      d[i] = v;
+    }
+  }
+  return d;
+}
+
+/**
+ * The quarter-res heightfield as a filterable texture, row 0 = north.
+ * R = ground height in scene units / 128, G = distance to the route in units / 64.
+ * Sample at uv = ((x, z) + half) / (2 * half).
+ */
+export function heightTexture(data: EverestData): THREE.DataTexture {
+  let tex = heightTextures.get(data);
+  if (!tex) {
+    const { w, h } = data.meta.heightBin;
+    const k = data.meta.exag / data.meta.unit / 128;
+    const cell = (2 * halfExtent(data.meta)[0]) / (w - 1);
+    const route = routeDistanceCells(data);
+    const px = new Uint16Array(w * h * 2);
+    for (let i = 0; i < w * h; i++) {
+      px[i * 2] = THREE.DataUtils.toHalfFloat(data.heights[i] * k);
+      px[i * 2 + 1] = THREE.DataUtils.toHalfFloat(Math.min(1, (route[i] * cell) / 64));
+    }
+    tex = new THREE.DataTexture(px, w, h, THREE.RGFormat, THREE.HalfFloatType);
+    tex.magFilter = THREE.LinearFilter;
+    tex.minFilter = THREE.LinearFilter;
+    tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+    tex.needsUpdate = true;
+    heightTextures.set(data, tex);
+  }
+  return tex;
 }
 
 /** Route distance drawn at chapter time s (dense table from route.mjs). */

@@ -147,7 +147,10 @@ async function stepDem() {
 
   const meta = { ...g, hMin, hMax, heightBin: { w: rw, h: rh, step }, peaks: peakOut, bbox: BBOX, crs: "EPSG:32645" };
   writeFileSync(join(OUT, "terrain.json"), JSON.stringify(meta, null, 1));
-  writeFileSync(join(PUB, "hi", "terrain.json"), JSON.stringify(meta));
+  // Keep the bake/light blocks written by build.py, so re-running this step never orphans the KTX2 textures.
+  const pubMeta = join(PUB, "hi", "terrain.json");
+  const prev = existsSync(pubMeta) ? JSON.parse(readFileSync(pubMeta, "utf8")) : {};
+  writeFileSync(pubMeta, JSON.stringify({ ...meta, ...(prev.bake ? { bake: prev.bake } : {}), ...(prev.light ? { light: prev.light } : {}) }));
   console.log("[geo] heights", hMin.toFixed(0), "..", hMax.toFixed(0), "m");
 }
 

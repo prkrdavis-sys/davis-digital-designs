@@ -457,37 +457,78 @@ def mid(*pts, w=None):
 AMA = PEAKS["Ama Dablam"]
 EVEREST = PEAKS["Everest"]
 LHOTSE = PEAKS["Lhotse"]
-RANGE_MID = np.array([-20.0, 52.0, -30.0])
+NUPTSE = PEAKS["Nuptse"]
 
+# The key light comes from the west-southwest (az 242), so views looking east
+# are front-lit and flat. Low elevations put the glowing peaks against the
+# deep eastern sky; looking north keeps the relief side-lit.
 # (s, target, follow, az, el, dist, fov, sx)
 KEYS = [
-    # intro: bird's eye over the whole range, drifting south toward Lukla.
-    (0.00, RANGE_MID, 0.0, -18, 52, 430, 36, 0.20),
-    (0.45, mid(RANGE_MID, wp("Namche Bazaar")), 0.0, -26, 47, 360, 36, 0.22),
-    (0.92, mid(wp("Lukla"), wp("Namche Bazaar")), 0.2, -38, 40, 190, 36, 0.26),
-    # values: Lukla -> Namche, low over the Dudh Kosi gorge.
-    (1.30, None, 0.9, -52, 34, 118, 35, 0.27),
-    (1.62, None, 1.0, -30, 32, 104, 35, 0.27),
-    (1.90, wp("Namche Bazaar"), 0.7, -10, 34, 110, 35, 0.27),
-    # tools: Tengboche -> Dingboche, orbiting around Ama Dablam.
-    (2.20, mid(wp("Tengboche"), AMA, w=[0.72, 0.28]), 0.35, -70, 24, 118, 34, 0.24),
-    (2.55, mid(wp("Pangboche"), AMA, w=[0.66, 0.34]), 0.35, -98, 22, 112, 34, 0.24),
-    (2.88, mid(wp("Dingboche"), AMA, w=[0.66, 0.34]), 0.35, -136, 23, 116, 34, 0.24),
-    # story: Lobuche -> Gorak Shep -> Base Camp -> Icefall -> Western Cwm -> South Col.
-    (3.10, mid(wp("Lobuche"), wp("Gorak Shep")), 0.6, -128, 30, 108, 34, 0.26),
-    (3.34, mid(wp("Everest Base Camp"), wp("Khumbu Icefall")), 0.7, -104, 30, 96, 34, 0.27),
-    (3.62, None, 1.0, -96, 30, 84, 34, 0.27),
-    (3.80, None, 1.0, -80, 30, 80, 34, 0.26),
-    (3.98, mid(wp("South Col"), EVEREST, LHOTSE), 0.6, -62, 26, 78, 33, 0.25),
-    # voices: the summit ridge, a slow orbit from the Western Cwm side to the south.
-    (4.25, None, 1.0, -44, 18, 58, 32, 0.25),
-    (4.55, None, 1.0, -18, 14, 50, 31, 0.26),
-    (4.85, EVEREST, 0.6, 6, 12, 48, 30, 0.26),
+    # intro: high over the south, the whole range ahead and the cloud sea on the horizon;
+    # a slow truck west and down toward Lukla, where the line starts.
+    (0.00, np.array([18.0, 60.0, -70.0]), 0.0, 16, 19, 440, 38, 0.16),
+    (0.40, np.array([-20.0, 52.0, 0.0]), 0.0, 8, 23, 340, 37, 0.18),
+    (0.80, mid(wp("Lukla"), wp("Namche Bazaar"), w=[0.55, 0.45]), 0.1, -4, 30, 210, 36, 0.22),
+    # values: Lukla -> Phakding -> Namche, following the head up the shadowed Dudh Kosi gorge
+    # from the west, with Kusum Kanguru and Thamserku lit up behind it.
+    (1.10, None, 0.85, -40, 26, 124, 35, 0.25),
+    (1.45, None, 1.0, -60, 22, 110, 35, 0.25),
+    (1.85, wp("Namche Bazaar"), 0.75, -44, 22, 114, 35, 0.25),
+    # tools: Tengboche -> Dingboche with Ama Dablam glowing behind, an orbit from the west to the north-west.
+    (2.18, mid(wp("Tengboche"), AMA, w=[0.72, 0.28]), 0.3, -76, 15, 124, 34, 0.22),
+    (2.55, mid(wp("Pangboche"), AMA, w=[0.64, 0.36]), 0.3, -104, 14, 116, 34, 0.2),
+    (2.88, mid(wp("Dingboche"), AMA, w=[0.62, 0.38]), 0.3, -138, 16, 120, 34, 0.2),
+    # story: Lobuche -> Gorak Shep -> Base Camp -> Icefall -> Western Cwm -> South Col, Everest against the sky.
+    (3.12, mid(wp("Lobuche"), wp("Gorak Shep")), 0.55, -122, 20, 114, 34, 0.24),
+    (3.36, mid(wp("Everest Base Camp"), wp("Khumbu Icefall")), 0.7, -102, 16, 104, 34, 0.24),
+    (3.62, None, 1.0, -92, 15, 96, 34, 0.24),
+    (3.82, None, 1.0, -78, 14, 92, 34, 0.23),
+    (3.98, mid(wp("South Col"), EVEREST, LHOTSE), 0.6, -62, 13, 90, 33, 0.22),
+    # voices: the summit ridge, a slow orbit from the Western Cwm side round to the south, near summit level.
+    (4.25, None, 1.0, -46, 9, 70, 32, 0.22),
+    (4.55, None, 1.0, -26, 7, 62, 31, 0.23),
+    (4.85, EVEREST, 0.6, -4, 7, 60, 30, 0.23),
     # outro: pull up and away, the whole golden route below.
-    (5.20, mid(EVEREST, wp("Gorak Shep")), 0.0, 14, 24, 120, 32, 0.22),
-    (5.65, mid(RANGE_MID, EVEREST, w=[0.6, 0.4]), 0.0, 10, 44, 330, 36, 0.18),
-    (S_MAX, np.array([-40.0, 48.0, 10.0]), 0.0, 4, 56, 520, 38, 0.14),
+    (5.20, mid(EVEREST, wp("Gorak Shep")), 0.0, 6, 18, 140, 32, 0.2),
+    (5.65, np.array([-5.0, 55.0, -30.0]), 0.0, 10, 30, 330, 36, 0.16),
+    (S_MAX, np.array([-25.0, 50.0, 10.0]), 0.0, 10, 40, 470, 38, 0.12),
 ]
+
+_DEM = None
+
+
+def ground_units(x, z):
+    """Terrain height (three.js units) under local (x, z); the skirt floor off the map."""
+    global _DEM
+    if _DEM is None:
+        _DEM = load_dem()
+    e = x * UNIT + META["ec"]
+    n = -z * UNIT + META["nc"]
+    fx = (e - META["e0"]) / META["dx"]
+    fy = (META["n1"] - n) / META["dx"]
+    if fx < 0 or fy < 0 or fx > META["nx"] - 1.001 or fy > META["ny"] - 1.001:
+        return 14.0
+    x0, y0 = int(fx), int(fy)
+    u, v = fx - x0, fy - y0
+    H = _DEM
+    h = (H[y0, x0] * (1 - u) + H[y0, x0 + 1] * u) * (1 - v) + (H[y0 + 1, x0] * (1 - u) + H[y0 + 1, x0 + 1] * u) * v
+    return float(h) * EXAG / UNIT
+
+
+def clear_view(pos, target, margin=6.0):
+    """Raise the camera until it clears the ground and has a line of sight to the subject."""
+    pos = pos.copy()
+    for _ in range(8):
+        need = ground_units(pos[0], pos[2]) + margin - pos[1]
+        for k in range(1, 28):
+            t = k / 30
+            p = pos + (target - pos) * t
+            # Grazing the subject's own slope near the end of the ray is fine.
+            need = max(need, (ground_units(p[0], p[2]) + margin * (1 - t) + 1.0 - p[1]) / max(1e-3, 1 - t))
+        if need <= 0:
+            break
+        pos[1] += need + 0.5
+    return pos
 
 
 def rail_frame(s):
@@ -503,7 +544,7 @@ def rail_frame(s):
     target = tgt * (1 - follow) + head * follow
     a, e = math.radians(az), math.radians(el)
     off = np.array([math.sin(a) * math.cos(e), math.sin(e), math.cos(a) * math.cos(e)])
-    pos = target + off * dist
+    pos = clear_view(target + off * dist, target)
     # Aim left of the subject so it sits right of centre, clear of the text column.
     fwd = (target - pos) / np.linalg.norm(target - pos)
     right = np.cross(fwd, np.array([0.0, 1.0, 0.0]))

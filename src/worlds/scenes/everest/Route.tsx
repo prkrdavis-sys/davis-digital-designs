@@ -301,16 +301,86 @@ interface LabelSpec {
 
 const fmt = (m: number) => `${Math.round(m).toLocaleString("en-US")} m`;
 
+const cardVertex = /* glsl */ `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+/** Rounded plate with a hairline border, sized in label units through uSize. */
+const cardFragment = /* glsl */ `
+  uniform vec2 uSize;
+  uniform vec3 uColor;
+  uniform vec3 uBorder;
+  uniform float uOpacity;
+  varying vec2 vUv;
+  float sdRoundRect(vec2 p, vec2 b, float r) {
+    vec2 q = abs(p) - b + r;
+    return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
+  }
+  void main() {
+    vec2 p = (vUv - 0.5) * uSize;
+    float d = sdRoundRect(p, uSize * 0.5, 0.32);
+    float fw = max(fwidth(d), 1e-4);
+    float fill = 1.0 - smoothstep(-fw, fw, d);
+    float line = 1.0 - smoothstep(0.0, fw * 1.5, abs(d + 0.05));
+    vec3 col = mix(uColor, uBorder, line * 0.85);
+    gl_FragColor = vec4(col, max(fill * uOpacity, line * uOpacity * 1.3));
+  }
+`;
+
+type TextMesh = THREE.Mesh & { fillOpacity: number; outlineOpacity: number; textRenderInfo?: { blockBounds: number[] } | null };
+
+const PAD_X = 0.5;
+const PAD_Y = 0.32;
+const GAP = 0.14;
+const TITLE_SIZE = { stop: 0.78, peak: 0.86 };
+const SUB_SIZE = 0.58;
+
+const projected = new THREE.Vector3();
+
 function Label({ spec, data, variant }: { spec: LabelSpec; data: EverestData; variant: Variant }) {
   const look = LOOKS[variant];
   const time = useSceneTime();
+  const peak = spec.kind === "peak";
   const group = useRef<THREE.Group>(null);
   const stem = useRef<THREE.Mesh>(null);
-  const title = useRef<THREE.Mesh & { fillOpacity: number; outlineOpacity: number }>(null);
-  const sub = useRef<THREE.Mesh & { fillOpacity: number; outlineOpacity: number }>(null);
-  const stemMat = useMemo(() => new THREE.MeshBasicMaterial({ color: spec.kind === "peak" ? look.label : look.gold, transparent: true, depthWrite: false, toneMapped: false }), [spec.kind, look]);
-  useEffect(() => () => stemMat.dispose(), [stemMat]);
+  const dot = useRef<THREE.Mesh>(null);
+  const card = useRef<THREE.Mesh>(null);
+  const title = useRef<TextMesh>(null);
+  const sub = useRef<TextMesh>(null);
+  const width = useRef({ title: spec.title.length * 0.62 * TITLE_SIZE[spec.kind], sub: spec.sub.length * 0.6 * SUB_SIZE });
+  const accent = peak ? look.label : look.gold;
+  const stemMat = useMemo(() => new THREE.MeshBasicMaterial({ color: accent, transparent: true, depthWrite: false, depthTest: false, toneMapped: false }), [accent]);
+  const cardMat = useMemo(
+    () =>
+      new THREE.ShaderMaterial({
+        vertexShader: cardVertex,
+        fragmentShader: cardFragment,
+        uniforms: {
+          uSize: { value: new THREE.Vector2(4, 2) },
+          uColor: { value: new THREE.Color(look.card) },
+          uBorder: { value: new THREE.Color(accent) },
+          uOpacity: { value: 0 },
+        },
+        transparent: true,
+        depthWrite: false,
+        depthTest: false,
+        toneMapped: false,
+      }),
+    [look, accent],
+  );
+  useEffect(
+    () => () => {
+      stemMat.dispose();
+      cardMat.dispose();
+    },
+    [stemMat, cardMat],
+  );
   const fade = useRef(0);
+  const cardH = PAD_Y * 2 + SUB_SIZE + GAP + TITLE_SIZE[spec.kind] * 0.9;
 
   useFrame((state, dt) => {
     const g = group.current;
@@ -319,52 +389,72 @@ function Label({ spec, data, variant }: { spec: LabelSpec; data: EverestData; va
     const [x, y, z] = spec.pos;
     const vd = Math.hypot(cam.position.x - x, cam.position.y - y, cam.position.z - z);
     const reached = spec.at < 0 || drawAt(data.route, time.s) >= spec.at - 0.5;
-    const near = spec.kind === "peak" ? 1 - THREE.MathUtils.smoothstep(vd, 360, 520) : 1 - THREE.MathUtils.smoothstep(vd, 190, 300);
-    const want = reached ? near : 0;
+    const near = peak ? 1 - THREE.MathUtils.smoothstep(vd, 380, 560) : 1 - THREE.MathUtils.smoothstep(vd, 200, 320);
+    // Stay clear of the page's text column on wide screens.
+    projected.set(x, y, z).project(cam);
+    const wide = state.size.width > state.size.height * 1.1;
+    const side = wide ? THREE.MathUtils.smoothstep(projected.x, -0.42, -0.18) : 1;
+    const onScreen = projected.z < 1 && Math.abs(projected.x) < 1.15 && Math.abs(projected.y) < 1.15 ? 1 : 0;
+    const want = reached ? near * side * onScreen : 0;
     fade.current += (want - fade.current) * (1 - Math.exp(-Math.min(dt, 0.1) * 5));
     const a = fade.current;
     g.visible = a > 0.01;
     if (!g.visible) return;
-    const k = vd * 0.011;
-    const lift = k * (spec.kind === "peak" ? 3.2 : 5.5) * (0.6 + 0.4 * a);
+    const k = vd * 0.0125;
+    const lift = k * (peak ? 2.6 : 4.2) * (0.7 + 0.3 * a);
     g.position.set(x, y + lift, z);
     g.scale.setScalar(k);
-    if (stem.current) {
-      stem.current.scale.set(0.05, lift / k, 1);
-      stem.current.position.set(0, -lift / k / 2 - 0.35, 0);
-      stemMat.opacity = a * 0.7;
+    const w = Math.max(width.current.title, width.current.sub) + PAD_X * 2;
+    if (card.current) {
+      card.current.scale.set(w, cardH, 1);
+      card.current.position.set(0, cardH / 2, 0);
+      cardMat.uniforms.uSize.value.set(w, cardH);
+      cardMat.uniforms.uOpacity.value = a * look.cardOpacity;
     }
+    if (stem.current) {
+      stem.current.scale.set(0.06, lift / k, 1);
+      stem.current.position.set(0, -lift / k / 2, 0);
+    }
+    if (dot.current) dot.current.position.set(0, -lift / k, 0);
+    stemMat.opacity = a * 0.85;
     if (title.current) {
       title.current.fillOpacity = a;
-      title.current.outlineOpacity = a * 0.5;
+      title.current.outlineOpacity = 0;
     }
     if (sub.current) {
-      sub.current.fillOpacity = a * 0.9;
-      sub.current.outlineOpacity = a * 0.45;
+      sub.current.fillOpacity = a * 0.95;
+      sub.current.outlineOpacity = 0;
     }
   });
 
-  const peak = spec.kind === "peak";
-  const outline = variant === "night" ? "#02050d" : "#233246";
+  const measure = (key: "title" | "sub") => (t: TextMesh) => {
+    const b = t.textRenderInfo?.blockBounds;
+    if (b) width.current[key] = b[2] - b[0];
+  };
+
   return (
     <group ref={group} visible={false}>
       <Billboard>
         <mesh ref={stem} material={stemMat} renderOrder={20}>
           <planeGeometry args={[1, 1]} />
         </mesh>
+        <mesh ref={dot} material={stemMat} renderOrder={20}>
+          <circleGeometry args={[0.2, 20]} />
+        </mesh>
+        <mesh ref={card} material={cardMat} renderOrder={21}>
+          <planeGeometry args={[1, 1]} />
+        </mesh>
         <Text
           ref={title}
           font={FONTS.label}
-          fontSize={peak ? 0.95 : 0.8}
-          letterSpacing={0.12}
+          fontSize={TITLE_SIZE[spec.kind]}
+          letterSpacing={0.1}
           anchorX="center"
           anchorY="bottom"
-          position={[0, 0.25, 0]}
+          position={[0, PAD_Y + SUB_SIZE + GAP, 0]}
           color={peak ? look.label : look.goldHot}
-          outlineWidth={0.06}
-          outlineColor={outline}
-          outlineBlur={0.25}
-          renderOrder={21}
+          renderOrder={22}
+          onSync={measure("title")}
           material-depthTest={false}
           material-toneMapped={false}
         >
@@ -373,16 +463,14 @@ function Label({ spec, data, variant }: { spec: LabelSpec; data: EverestData; va
         <Text
           ref={sub}
           font={FONTS.mono}
-          fontSize={0.62}
+          fontSize={SUB_SIZE}
           letterSpacing={0.04}
           anchorX="center"
-          anchorY="top"
-          position={[0, 0.15, 0]}
+          anchorY="bottom"
+          position={[0, PAD_Y, 0]}
           color={look.labelMuted}
-          outlineWidth={0.05}
-          outlineColor={outline}
-          outlineBlur={0.25}
-          renderOrder={21}
+          renderOrder={22}
+          onSync={measure("sub")}
           material-depthTest={false}
           material-toneMapped={false}
         >
