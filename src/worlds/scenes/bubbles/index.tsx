@@ -7,7 +7,7 @@ import * as THREE from "three";
 import { BloomEffect, DepthOfFieldEffect } from "postprocessing";
 import type { SceneComponentProps } from "@/worlds/types";
 import { useLook, usePostFX } from "@/components/three/engine/slot";
-import { RailCamera, loadRail, useRail } from "@/components/three/engine/rails";
+import { RailCamera, loadRail, useRail, type Rail } from "@/components/three/engine/rails";
 import { preloadWorldGLTF } from "@/components/three/engine/assets";
 import { CoverPanel } from "@/components/three/engine/CoverPanel";
 import { LayerStack } from "@/worlds/lo/LayerStack";
@@ -21,6 +21,62 @@ import { Clouds } from "@/worlds/scenes/bubbles/Clouds";
 const RAIL = "/worlds/bubbles/rails.json";
 /** Shared with the garden (same studio), so the browser fetches it once. */
 const HDRI = "/worlds/garden/hi/studio.hdr";
+/** Authored rail ends here (scene time ~1.2). The homepage continues through the closing section and footer. */
+const AUTHORED_END = 1.4;
+const TAIL_END = 3.2;
+
+const axis = new THREE.Vector3(0, 10, 0);
+const worldUp = new THREE.Vector3(0, 0, 1);
+const rx = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
+
+/**
+ * Orbit pose in three.js coordinates, matching art/worlds/bubbles/build.py `rail_keys`
+ * (Blender Z-up, camera -Z aimed just left of the flock, then rotated onto Y-up).
+ */
+function orbitPose(orbitDeg: number, radius: number, camZ: number, lookZ: number, pos: THREE.Vector3, quat: THREE.Quaternion) {
+  const a = THREE.MathUtils.degToRad(orbitDeg - 90);
+  const posB = new THREE.Vector3(Math.cos(a) * radius, Math.sin(a) * radius, camZ).add(axis);
+  const lookPoint = axis.clone().setZ(axis.z + lookZ);
+  const toAxis = lookPoint.clone().sub(posB);
+  const right = new THREE.Vector3().crossVectors(toAxis, worldUp).normalize();
+  const look = lookPoint.addScaledVector(right, -2.2);
+  const dir = look.sub(posB).normalize();
+  const zAxis = dir.clone().negate();
+  const xAxis = new THREE.Vector3().crossVectors(worldUp, zAxis).normalize();
+  const yAxis = new THREE.Vector3().crossVectors(zAxis, xAxis).normalize();
+  quat.setFromRotationMatrix(new THREE.Matrix4().makeBasis(xAxis, yAxis, zAxis)).premultiply(rx);
+  pos.set(posB.x, posB.z, -posB.y);
+}
+
+/** Sine ease-in: the authored rail arrives stopped, and this tail is still moving at the bottom of the page. */
+function easeIn(u: number) {
+  const t = THREE.MathUtils.clamp(u, 0, 1);
+  return 1 - Math.cos(t * Math.PI * 0.5);
+}
+
+/**
+ * Append a slower orbit past the Blender rail so scene time through the closing
+ * section and footer (about 1.2 to 3) stays inside the upper flock instead of clamping.
+ */
+function extendRail(rail: Rail): Rail {
+  const step = rail.step;
+  const end = Math.round(TAIL_END / step);
+  if (rail.count - 1 >= end) return rail;
+  const p = rail.p.slice();
+  const q = rail.q.slice();
+  const fov = rail.fov.slice();
+  const pos = new THREE.Vector3();
+  const quat = new THREE.Quaternion();
+  for (let i = rail.count; i <= end; i++) {
+    const u = (i * step - AUTHORED_END) / (TAIL_END - AUTHORED_END);
+    const e = easeIn(u);
+    orbitPose(24 + 36 * e, 12.5, 16.5 + 4 * e, 17 + 4 * e, pos, quat);
+    p.push(pos.x, pos.y, pos.z);
+    q.push(quat.x, quat.y, quat.z, quat.w);
+    fov.push(46);
+  }
+  return { step, sMax: end * step, count: end + 1, p, q, fov };
+}
 
 export function preload() {
   void loadRail(RAIL);
@@ -50,7 +106,8 @@ function Studio({ night }: { night: boolean }) {
 }
 
 function Hi({ variant, mode }: SceneComponentProps) {
-  const rail = useRail(RAIL);
+  const authored = useRail(RAIL);
+  const rail = useMemo(() => extendRail(authored), [authored]);
   const layout = use(loadLayout());
   const night = variant === "night";
   const pal = BUBBLES[variant];
@@ -102,7 +159,7 @@ function Hi({ variant, mode }: SceneComponentProps) {
 function Lo({ variant }: SceneComponentProps) {
   const night = variant === "night";
   return (
-    <LayerStack scene="bubbles" variant={variant} parallax={0.045} dolly={0.1} focus={0.62}>
+    <LayerStack scene="bubbles" variant={variant} parallax={0.045} dolly={0.1} focus={0.62} tail={2.2} tailScale={0.45}>
       <Motes night={night} count={80} box={LO_BOX} size={0.05} colors={BUBBLES[variant].motes} />
     </LayerStack>
   );

@@ -30,6 +30,10 @@ interface Props {
   fade?: number;
   /** Where the subject sits across the rendered frame (0..1); portrait screens pan to keep it in view. */
   focus?: number;
+  /** Scene time after the last layer set during which the camera keeps dollying. */
+  tail?: number;
+  /** Dolly rate during that tail, relative to `dolly`. */
+  tailScale?: number;
   /** Cheap live extras (particles, glints) rendered in front of the layers. */
   children?: ReactNode;
 }
@@ -47,7 +51,7 @@ interface Built {
  * chapter's set sits one dolly-length further down -Z, so scrolling flies
  * forward through them while they crossfade.
  */
-export function LayerStack({ scene, variant, parallax = 0.035, dolly = 0.14, fade = 0.45, focus = 0.64, children }: Props) {
+export function LayerStack({ scene, variant, parallax = 0.035, dolly = 0.14, fade = 0.45, focus = 0.64, tail = 1.4, tailScale = 1, children }: Props) {
   useLook({ tone: "none", exposure: 1, grain: 0.04, vignette: 0.28 });
   const sets = useLayerSets(scene, variant);
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
@@ -111,7 +115,8 @@ export function LayerStack({ scene, variant, parallax = 0.035, dolly = 0.14, fad
     const cur = built[k];
     const next = built[k + 1];
     const span = next ? next.set.s - cur.set.s : 1;
-    const u = THREE.MathUtils.clamp((s - cur.set.s) / span, 0, next ? 1 : 1.4);
+    const past = (s - cur.set.s) / span;
+    const u = next ? THREE.MathUtils.clamp(past, 0, 1) : THREE.MathUtils.clamp(past, 0, tail) * tailScale;
     const a = next ? THREE.MathUtils.smoothstep(u, 1 - fade, 1) : 0;
 
     // The current set's back layer stays opaque so the crossfade never dips toward black.

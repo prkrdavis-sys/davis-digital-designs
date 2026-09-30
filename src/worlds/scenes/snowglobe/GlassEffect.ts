@@ -1,5 +1,5 @@
 import { Color, Uniform } from "three";
-import { Effect } from "postprocessing";
+import { BlendFunction, Effect } from "postprocessing";
 
 const fragment = /* glsl */ `
   uniform float strength;
@@ -34,7 +34,7 @@ const fragment = /* glsl */ `
       col += tint * ring * strength * 0.8;
       col = mix(col, col * tint * 1.1 + tint * 0.05, strength * 0.35);
     }
-    outputColor = vec4(col, inputColor.a);
+    outputColor = vec4(col, 1.0);
   }
 `;
 
@@ -42,6 +42,7 @@ const fragment = /* glsl */ `
 export class GlassEffect extends Effect {
   constructor() {
     super("GlassEffect", fragment, {
+      blendFunction: BlendFunction.SRC,
       uniforms: new Map<string, Uniform>([
         ["strength", new Uniform(0)],
         ["time", new Uniform(0)],

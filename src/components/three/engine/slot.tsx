@@ -48,6 +48,25 @@ export interface SlotHandle {
 
 const SlotContext = createContext<SlotHandle | null>(null);
 
+/**
+ * Mipmapped bloom builds a pyramid of half-float targets. On this GPU that
+ * pyramid's texture makes the effect pass write black, while the Kawase blur
+ * the same effect uses otherwise keeps the picture. Point the bloom at Kawase.
+ */
+function useKawaseBloom(effects: Effect[]) {
+  for (const effect of effects) {
+    const bloom = effect as Effect & {
+      mipmapBlurPass?: { enabled: boolean };
+      renderTarget?: THREE.WebGLRenderTarget;
+      uniforms?: Map<string, { value: unknown }>;
+    };
+    if (!bloom.mipmapBlurPass || !bloom.renderTarget) continue;
+    bloom.mipmapBlurPass.enabled = false;
+    const map = bloom.uniforms?.get("map");
+    if (map) map.value = bloom.renderTarget.texture;
+  }
+}
+
 export function useSlot(): SlotHandle {
   const h = useContext(SlotContext);
   if (!h) throw new Error("useSlot must be used inside a scene");
@@ -157,11 +176,12 @@ function createHandle(id: SceneId, quality: Quality): SlotHandle {
         dirty = false;
         lastSize.w = 0;
       }
-      if (lastSize.w !== size.width || lastSize.h !== size.height) {
+      if (lastSize.w !== buffer.x || lastSize.h !== buffer.y) {
         composer.setSize(size.width, size.height, false);
-        lastSize.w = size.width;
-        lastSize.h = size.height;
+        lastSize.w = buffer.x;
+        lastSize.h = buffer.y;
       }
+      if (effects) useKawaseBloom(effects);
       composer.render(1 / 60);
       return target.texture;
     },

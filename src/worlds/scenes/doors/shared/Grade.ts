@@ -1,5 +1,5 @@
 import { Color, Uniform } from "three";
-import { Effect } from "postprocessing";
+import { BlendFunction, Effect } from "postprocessing";
 
 const fragment = /* glsl */ `
   uniform float contrast;
@@ -14,7 +14,7 @@ const fragment = /* glsl */ `
     c = pivot * pow(c / pivot, vec3(contrast));
     float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
     c = max(mix(vec3(l), c, saturation) + lift * l, vec3(0.0));
-    outputColor = vec4(c, inputColor.a);
+    outputColor = vec4(c, 1.0);
   }
 `;
 
@@ -32,6 +32,8 @@ export interface GradeOptions {
 export class GradeEffect extends Effect {
   constructor({ contrast = 1.25, pivot = 0.18, saturation = 1.08, lift = "#000000" }: GradeOptions = {}) {
     super("GradeEffect", fragment, {
+      // NORMAL blends with input alpha. These HDR buffers are cleared to alpha 0, so that blend throws the picture away.
+      blendFunction: BlendFunction.SRC,
       uniforms: new Map<string, Uniform>([
         ["contrast", new Uniform(contrast)],
         ["pivot", new Uniform(pivot)],

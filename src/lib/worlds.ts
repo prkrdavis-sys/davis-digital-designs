@@ -49,8 +49,8 @@ export const WORLDS: Record<WorldId, World> = {
       { id: "doors", scene: "doors", transition: "dissolve" },
       { id: "reel", scene: "museum", transition: "wipe" },
       { id: "voices", scene: "bubbles", transition: "chroma" },
-      { id: "cta", scene: "diorama", transition: "dissolve" },
-      { id: "outro", scene: "diorama" },
+      { id: "cta", scene: "bubbles" },
+      { id: "outro", scene: "bubbles" },
     ],
   },
   sites: {

@@ -26,7 +26,7 @@ const fragment = /* glsl */ `
     }
     vec2 q = (uv - uSun) * vec2(uAspect, 1.0);
     float falloff = 1.0 / (1.0 + dot(q, q) * 1.5);
-    outputColor = vec4(inputColor.rgb + acc * uTint * (uStrength * falloff / float(STEPS)), inputColor.a);
+    outputColor = vec4(inputColor.rgb + acc * uTint * (uStrength * falloff / float(STEPS)), 1.0);
   }
 `;
 
@@ -38,7 +38,8 @@ const fragment = /* glsl */ `
 export class GodRaysEffect extends Effect {
   constructor({ strength = 0.5, decay = 0.965, density = 0.85, threshold = 0.9, tint = new THREE.Color(1, 1, 1), steps = 40 } = {}) {
     super("PlanesGodRays", fragment, {
-      blendFunction: BlendFunction.NORMAL,
+      // SRC: the HDR buffer's alpha is 0, and NORMAL would blend the sky away.
+      blendFunction: BlendFunction.SRC,
       attributes: EffectAttribute.CONVOLUTION,
       defines: new Map([["STEPS", String(steps)]]),
       uniforms: new Map<string, THREE.Uniform>([
