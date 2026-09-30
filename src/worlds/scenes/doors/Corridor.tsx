@@ -24,7 +24,12 @@ export function useCorridor(variant: Variant) {
     const shell = meshes.get("shell");
     const props = meshes.get("props");
     const floorMesh = meshes.get("floor");
-    for (const m of [shell, props]) if (m) tuneBaked(m, { rough: 0.45, envIntensity: variant === "night" ? 0.25 : 0.4 });
+    for (const m of [shell, props]) {
+      if (!m) continue;
+      tuneBaked(m, { rough: 0.45, envIntensity: variant === "night" ? 0.25 : 0.4 });
+      // Night reuses the day GI atlas until a moonlit bake lands, so pull the emission down.
+      if (variant === "night") (m.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.38;
+    }
     let floor: THREE.Mesh | null = null;
     let material: THREE.ShaderMaterial | null = null;
     if (floorMesh) {

@@ -64,6 +64,7 @@ function Plinths({ variant }: { variant: Variant }) {
       if (m && "envMapIntensity" in m) {
         m.envMapIntensity = variant === "night" ? 0.15 : 0.35;
         m.roughness = 0.7;
+        m.emissiveIntensity = variant === "night" ? 0.42 : 1;
       }
     });
   }, [gltf, variant]);

@@ -1,0 +1,1 @@
+{"tag":"night-s300","s":3,"fov":42,"aspect":1.6,"layers":[{"band":"back","file":"night-s300-back.webp","depth":22},{"band":"mid","file":"night-s300-mid.webp","depth":9}]}

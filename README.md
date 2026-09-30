@@ -36,7 +36,7 @@ Invalid frontmatter in content/work/my-project.mdx:
 
 Fields worth knowing:
 
-- `category`: `sites`, `apps`, `play`, or `create`. Decides which door it lives behind and which season it wears.
+- `category`: `sites`, `apps`, `play`, or `create`. Decides which door it lives behind and which world plays behind the project page.
 - `featured: true`: shows on the homepage reel.
 - `size`: `sm`, `md`, or `lg`. How much room the card takes in grids.
 - `tags`: become the filter chips on the category page.
@@ -109,7 +109,7 @@ src/lib/
 
 - One motion language: three eases, four durations, in `src/lib/motion.ts`.
 - Reduced motion is respected everywhere. Touch devices get the Low Resources worlds and no custom cursor.
-- No WebGL? Cycles poster stills of each world take over. Nothing breaks.
+- No WebGL, or Low Resources mode? Each world falls back to designed poster stills and depth plates. Nothing breaks.
 - Colors are CSS variables in `src/app/globals.css`. Light is day, dark is night, and each world sets its own accent trio (generated from `src/lib/worlds.ts`).
 
 ## Secrets

@@ -1,0 +1,1 @@
+{"tag":"night-s500","s":5,"fov":42,"aspect":1.6,"layers":[{"band":"back","file":"night-s500-back.webp","depth":22},{"band":"mid","file":"night-s500-mid.webp","depth":9}]}
