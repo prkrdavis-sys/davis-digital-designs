@@ -61,18 +61,22 @@ def day_sky(w=2048, h=1024):
     away = (1 - np.clip(hd @ hs, -1, 1)) / 2
     e = np.clip(el, 0, None)
 
-    zenith = srgb_to_lin("#32609e")
-    upper = srgb_to_lin("#86aacb")
-    band_sun = srgb_to_lin("#ffa55c")
-    band_side = srgb_to_lin("#f2a88e")
-    band_away = srgb_to_lin("#d9a3b4")
+    zenith = srgb_to_lin("#2a5898")
+    upper = srgb_to_lin("#7ea2c8")
+    band_sun = srgb_to_lin("#ff8c3a")
+    band_side = srgb_to_lin("#f6a070")
+    band_away = srgb_to_lin("#cf9cb6")
     shadow_blue = srgb_to_lin("#6a7fb0")
+    near = (1 - away) ** 2
 
     # vertical structure: zenith -> upper sky -> glowing horizon band
     t_up = np.clip(e / (math.pi / 2), 0, 1) ** 0.55
     sky = upper[None, None] * (1 - t_up)[..., None] + zenith[None, None] * t_up[..., None]
+    # The low sky on the sun's side turns gold well above the band.
+    warm = near * np.exp(-e / 0.45) * 0.55
+    sky = sky * (1 - warm)[..., None] + srgb_to_lin("#f0b27a")[None, None] * warm[..., None]
     band_col = band_sun[None, None] * np.clip(1 - away * 2, 0, 1)[..., None] + band_side[None, None] * (1 - np.abs(away * 2 - 1))[..., None] + band_away[None, None] * np.clip(away * 2 - 1, 0, 1)[..., None]
-    band = np.exp(-e / (0.16 + 0.14 * (1 - away)))
+    band = np.exp(-e / (0.1 + 0.2 * near))
     sky = sky * (1 - band)[..., None] + band_col * band[..., None]
     # Earth's shadow rising opposite the sun, Belt of Venus just above it.
     anti = np.clip(away * 2 - 1, 0, 1) ** 2
@@ -80,12 +84,13 @@ def day_sky(w=2048, h=1024):
     belt = np.exp(-(((e - 0.09) / 0.05) ** 2)) * anti
     sky = sky * (1 - 0.55 * shadow)[..., None] + shadow_blue * 0.55 * shadow[..., None] + srgb_to_lin("#ffb3c6") * 0.35 * belt[..., None]
     # brightness: brighter toward the horizon and the sun
-    lum = 0.55 + 1.1 * band + 0.25 * np.clip(1 - away, 0, 1)
+    lum = 0.5 + 0.85 * band + 0.45 * near
     sky *= lum[..., None]
-    # Mie glow around the sun (two lobes).
+    # Mie glow around the sun: a hot golden core inside a wide orange aureole.
     g = np.clip(cs, 0, 1)
-    glow = 3.2 * g**48 + 1.1 * g**8 + 0.35 * g**2
-    sky += srgb_to_lin("#ffc27a")[None, None] * glow[..., None] * np.clip(1.2 - e * 2, 0.2, 1)[..., None]
+    low = np.clip(1.2 - e * 2, 0.2, 1)[..., None]
+    sky += srgb_to_lin("#ffd08e")[None, None] * (2.4 * g**90 + 0.7 * g**20)[..., None] * low
+    sky += srgb_to_lin("#ff8f45")[None, None] * (0.55 * g**6 + 0.22 * g**2)[..., None] * low
     # Thin cirrus, combed by the wind, lit warm near the sun and pink away from it.
     lon = np.arctan2(D[..., 1], -D[..., 0])
     # project onto a flat cloud deck so streaks converge at the horizon

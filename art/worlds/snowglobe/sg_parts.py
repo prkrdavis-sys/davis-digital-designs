@@ -15,11 +15,29 @@ import numpy as np
 from mathutils import Matrix, Vector
 
 import sg_model as sm
-from ddd import geo, mat
+from ddd import cli, geo, mat
 
 CACHE = pathlib.Path(__file__).resolve().parents[2] / ".cache"
 TEX = CACHE / "polyhaven" / "texture"
-FONTS = pathlib.Path("/System/Library/Fonts/Supplemental")
+TINT_DIR = cli.OUT / "snowglobe" / "tex"
+REPO_FONTS = pathlib.Path(__file__).resolve().parents[3] / "public" / "worlds" / "everest" / "fonts"
+SYS_FONTS = pathlib.Path("/usr/share/fonts/truetype")
+
+# Role -> candidates, first existing wins. Geist ships in the repo (OFL); DejaVu and
+# Liberation are installed by art/setup-cloud.sh. The macOS originals come last.
+FONTS = {
+    "sign": [REPO_FONTS / "Geist-SemiBold.ttf", SYS_FONTS / "dejavu" / "DejaVuSans-Bold.ttf", pathlib.Path("/System/Library/Fonts/Supplemental/DIN Condensed Bold.ttf")],
+    "engrave": [SYS_FONTS / "liberation" / "LiberationSerif-Bold.ttf", SYS_FONTS / "dejavu" / "DejaVuSerif-Bold.ttf", pathlib.Path("/System/Library/Fonts/Supplemental/BigCaslon.ttf")],
+    "engrave_small": [SYS_FONTS / "liberation" / "LiberationSerif-Regular.ttf", SYS_FONTS / "dejavu" / "DejaVuSerif.ttf", pathlib.Path("/System/Library/Fonts/Supplemental/BigCaslon.ttf")],
+    "chalk": [REPO_FONTS / "Geist-SemiBold.ttf", SYS_FONTS / "dejavu" / "DejaVuSans-Bold.ttf", pathlib.Path("/System/Library/Fonts/Supplemental/Chalkduster.ttf")],
+}
+
+
+def font_file(role):
+    for p in FONTS[role]:
+        if p.exists():
+            return p
+    raise FileNotFoundError(f"no font for {role!r}; tried {[str(p) for p in FONTS[role]]}")
 
 _mats = {}
 
@@ -45,6 +63,31 @@ def tex_maps(tid, res):
     return out
 
 
+def tinted_image(path, tint):
+    """A copy of an sRGB texture multiplied by a linear tint. The tint is baked into
+    the file because the glTF exporter cannot follow a MixRGB node to the image."""
+    key = "".join(f"{round(c * 255):02x}" for c in tint)
+    dst = TINT_DIR / f"{path.stem}_x{key}.png"
+    if dst.exists():
+        return dst
+    TINT_DIR.mkdir(parents=True, exist_ok=True)
+    src = bpy.data.images.load(str(path))
+    W, H = src.size
+    px = np.array(src.pixels[:], np.float32).reshape(H, W, 4)
+    rgb = px[..., :3]
+    lin = np.where(rgb <= 0.04045, rgb / 12.92, ((rgb + 0.055) / 1.055) ** 2.4) * np.array(tint, np.float32)
+    px[..., :3] = np.where(lin <= 0.0031308, lin * 12.92, 1.055 * np.power(np.clip(lin, 0, 1), 1 / 2.4) - 0.055)
+    px[..., 3] = 1.0
+    out = bpy.data.images.new(dst.stem, W, H, alpha=False)
+    out.pixels.foreach_set(px.ravel())
+    out.filepath_raw = str(dst)
+    out.file_format = "PNG"
+    out.save()
+    bpy.data.images.remove(out)
+    bpy.data.images.remove(src)
+    return dst
+
+
 def pbr_mat(name, tid, res="1k", normal_strength=1.0, tint=None, diffuse_res=None, **props):
     if name in _mats:
         return _mats[name]
@@ -55,16 +98,8 @@ def pbr_mat(name, tid, res="1k", normal_strength=1.0, tint=None, diffuse_res=Non
     nt = m.node_tree
     b = mat.bsdf_of(m)
     if "diffuse" in maps:
-        t = mat.image_node(m, maps["diffuse"], "sRGB")
-        if tint:
-            mix = nt.nodes.new("ShaderNodeMixRGB")
-            mix.blend_type = "MULTIPLY"
-            mix.inputs["Fac"].default_value = 1.0
-            mix.inputs[2].default_value = (*tint, 1)
-            nt.links.new(t.outputs["Color"], mix.inputs[1])
-            nt.links.new(mix.outputs[0], b.inputs["Base Color"])
-        else:
-            nt.links.new(t.outputs["Color"], b.inputs["Base Color"])
+        t = mat.image_node(m, tinted_image(maps["diffuse"], tint) if tint else maps["diffuse"], "sRGB")
+        nt.links.new(t.outputs["Color"], b.inputs["Base Color"])
     if "rough" in maps and "rough" not in props:
         t = mat.image_node(m, maps["rough"], "Non-Color")
         nt.links.new(t.outputs["Color"], b.inputs["Roughness"])
@@ -164,13 +199,10 @@ def lathe(name, profile, group, material, seg=64, loc=(0, 0, 0)):
     return o
 
 
-def text(name, body, font_file, size, loc, rot, group, material, extrude=0.0, align="CENTER", spacing=1.0, max_tris=1800):
+def text(name, body, role, size, loc, rot, group, material, extrude=0.0, align="CENTER", spacing=1.0, max_tris=1800, condense=1.0):
     cu = bpy.data.curves.new(name, "FONT")
     cu.body = body
-    try:
-        cu.font = bpy.data.fonts.load(str(FONTS / font_file), check_existing=True)
-    except RuntimeError:
-        pass
+    cu.font = bpy.data.fonts.load(str(font_file(role)), check_existing=True)
     cu.size = size
     cu.extrude = extrude
     cu.align_x = align
@@ -182,6 +214,8 @@ def text(name, body, font_file, size, loc, rot, group, material, extrude=0.0, al
     dg = bpy.context.evaluated_depsgraph_get()
     me = bpy.data.meshes.new_from_object(tmp.evaluated_get(dg))
     bpy.data.objects.remove(tmp, do_unlink=True)
+    if condense != 1.0:
+        me.transform(Matrix.Scale(condense, 4, (1, 0, 0)))
     o = bpy.data.objects.new(name, me)
     bpy.context.scene.collection.objects.link(o)
     tris = geo.triangle_count(o)
@@ -374,7 +408,6 @@ def ground_mesh(vm):
             v.co.z = max(v.co.z, sm.GLOBE_C[2] - math.sqrt(max(0.0, sm.R_IN ** 2 - r * r)) + 0.004)
     o = _obj("ground", bm, "village", vm["snow"])
     geo.smooth(o, 180)
-    planar_uv(o, 6.0)
     # Skirt down into the base so the seam is hidden.
     skirt = lathe("ground_skirt", [(sm.VILLAGE_R + 0.02, sm.BASE_TOP - 0.02), (sm.VILLAGE_R + 0.02, sm.BASE_TOP + 0.03)], "village", vm["snow"], seg=96)
     return [o, skirt]
@@ -387,7 +420,6 @@ def pond(vm):
     bmesh.ops.scale(bm, vec=Vector((sm.POND["rx"] * 1.02, sm.POND["ry"] * 1.02, 1)), verts=bm.verts)
     ice = _obj("ice", bm, "village", vm["ice"])
     ice.location = (c[0], c[1], sm.POND_Z)
-    planar_uv(ice, 4.0)
     return [ice]
 
 
@@ -508,7 +540,7 @@ def cabin(vm):
     parts.append(box("win_side_f", (0.003, 0.04, 0.034), (W / 2 + lr + 0.0005, 0, H * 0.55), "village", vm["cream"]))
     # Sign over the door
     parts.append(box("sign_board", (0.07, 0.004, 0.016), (0, -D / 2 - lr - 0.004, H + 0.012), "village", vm["cream"], bevel=0.001))
-    parts.append(text("sign_text", "STUDIO", "DIN Condensed Bold.ttf", 0.012, (0, -D / 2 - lr - 0.0065, H + 0.011), (math.pi / 2, 0, 0), "village", vm["cinema_red"], extrude=0.0006))
+    parts.append(text("sign_text", "STUDIO", "sign", 0.012, (0, -D / 2 - lr - 0.0065, H + 0.011), (math.pi / 2, 0, 0), "village", vm["cinema_red"], extrude=0.0006))
     # Porch deck + steps
     parts.append(box("porch", (0.09, 0.03, 0.006), (0, -D / 2 - lr - 0.016, 0.003), "village", vm["wood_light"]))
     o = assemble("cabin", parts, (sm.CABIN["p"][0], sm.CABIN["p"][1], sm.ground(*sm.CABIN["p"]) - 0.006), heading(sm.CABIN["face"]), "village")
@@ -560,7 +592,7 @@ def cinema(vm):
     # Blade sign with letters
     parts.append(box("blade", (0.012, 0.03, 0.085), (W * 0.36, -D / 2 - 0.018, H + 0.005), "village", vm["cream"], bevel=0.002))
     for i, ch in enumerate("CINEMA"):
-        parts.append(text(f"blade_{ch}{i}", ch, "DIN Condensed Bold.ttf", 0.013, (W * 0.36 - 0.0065, -D / 2 - 0.018, H + 0.04 - i * 0.0135), (math.pi / 2, 0, -math.pi / 2), "village", glow("glow_bulb"), extrude=0.0008))
+        parts.append(text(f"blade_{ch}{i}", ch, "sign", 0.012, (W * 0.36 - 0.0065, -D / 2 - 0.018, H + 0.04 - i * 0.0135), (math.pi / 2, 0, -math.pi / 2), "village", glow("glow_bulb"), extrude=0.0008))
     # Lobby doors (warm glow) and poster frames
     parts.append(box("lobby", (0.08, 0.004, 0.045), (0, -D / 2 - 0.001, 0.035), "village", glow("glow_lobby")))
     for dx in (-0.02, 0.0, 0.02):
@@ -742,7 +774,7 @@ def path_mesh(vm):
     for k, pts2 in enumerate((sm.PATH, sm.PATH_B)):
         pts = sm.path_points(pts2, 0.006)
         p3 = [(x, y, sm.ground(x, y) + 0.0012) for x, y in pts]
-        r = ribbon(f"path{k}", p3, 0.05 if k == 0 else 0.04, "village", vm["snow_path"], uv_len=0.2)
+        r = ribbon(f"path{k}", p3, 0.05 if k == 0 else 0.04, "village", vm["snow_path"], uv_len=4.0)
         # Conform each vertex to the ground.
         for v in r.data.vertices:
             v.co.z = sm.ground(v.co.x, v.co.y) + 0.0012
@@ -1013,8 +1045,8 @@ def globe_base(dm):
     zc = 0.26
     rc = 0.955 - (zc - 0.085) * (0.97 - 0.88) / (0.42 - 0.085) + 0.012
     plaque = box("plaque", (0.66, 0.02, 0.15), (0, -rc, zc), "props", dm["brass"], rot=(-tilt, 0, 0), bevel=0.01, seg=3)
-    t1 = text("plaque_text", "DAVIS DIGITAL", "BigCaslon.ttf", 0.078, (0, -rc - 0.0105, zc + 0.012), (math.pi / 2 - tilt, 0, 0), "props", dm["brass_dark"], extrude=0.0015, spacing=1.15)
-    t2 = text("plaque_sub", "STORIES IN A TINY, PERFECT WORLD", "BigCaslon.ttf", 0.024, (0, -rc - 0.0105 + 0.001, zc - 0.042), (math.pi / 2 - tilt, 0, 0), "props", dm["brass_dark"], extrude=0.001, spacing=1.2)
+    t1 = text("plaque_text", "DAVIS DIGITAL", "engrave", 0.078, (0, -rc - 0.0105, zc + 0.012), (math.pi / 2 - tilt, 0, 0), "props", dm["brass_dark"], extrude=0.0015, spacing=1.15)
+    t2 = text("plaque_sub", "STORIES IN A TINY, PERFECT WORLD", "engrave_small", 0.024, (0, -rc - 0.0105 + 0.001, zc - 0.042), (math.pi / 2 - tilt, 0, 0), "props", dm["brass_dark"], extrude=0.001, spacing=1.2)
     screws = [cyl(f"screw{sx}", 0.012, 0.01, (sx * 0.29, -rc - 0.012, zc + 0.0), "props", dm["brass"], rot=(math.pi / 2 - tilt, 0, 0), seg=12) for sx in (-1, 1)]
     return [base, ring, felt, plaque, t1, t2, *screws]
 
@@ -1058,7 +1090,7 @@ def film_camera(dm):
     mat.assign(handle, dm["leather"])
     box_uv(handle, 0.9)
     parts.append(handle)
-    parts.append(text("cam_badge", "DDD-16", "DIN Condensed Bold.ttf", 0.16, (-W / 2 - 0.02, -0.4, Hh * 0.85), (math.pi / 2, 0, -math.pi / 2), "props", dm["chrome"], extrude=0.01))
+    parts.append(text("cam_badge", "DDD-16", "sign", 0.16, (-W / 2 - 0.02, -0.4, Hh * 0.85), (math.pi / 2, 0, -math.pi / 2), "props", dm["chrome"], extrude=0.01))
     return assemble("film_camera", parts, (3.35, 1.55, 0.0), math.radians(-38), "props")
 
 
@@ -1105,10 +1137,10 @@ def clapperboard(dm):
     for k, (lx, lz) in enumerate(lines):
         parts.append(box(f"chalk_line{k}", (W * 0.9, 0.004, 0.018), (lx, y, lz), "props", dm["chalk"]))
     parts.append(box("chalk_v", (0.018, 0.004, H * 0.26), (0, y, H * 0.49), "props", dm["chalk"]))
-    parts.append(text("clap_title", "DAVIS DIGITAL", "Chalkduster.ttf", 0.3, (0, y - 0.002, H * 0.8), (math.pi / 2, 0, 0), "props", dm["chalk"], extrude=0.002))
-    parts.append(text("clap_scene", "SCENE 01", "Chalkduster.ttf", 0.2, (-W * 0.24, y - 0.002, H * 0.49), (math.pi / 2, 0, 0), "props", dm["chalk"], extrude=0.002))
-    parts.append(text("clap_take", "TAKE 03", "Chalkduster.ttf", 0.2, (W * 0.24, y - 0.002, H * 0.49), (math.pi / 2, 0, 0), "props", dm["chalk"], extrude=0.002))
-    parts.append(text("clap_dir", "DIR. P. DAVIS", "Chalkduster.ttf", 0.16, (0, y - 0.002, H * 0.2), (math.pi / 2, 0, 0), "props", dm["chalk"], extrude=0.002))
+    parts.append(text("clap_title", "DAVIS DIGITAL", "chalk", 0.36, (0, y - 0.002, H * 0.8), (math.pi / 2, 0, 0), "props", dm["chalk"], extrude=0.002))
+    parts.append(text("clap_scene", "SCENE 01", "chalk", 0.2, (-W * 0.24, y - 0.002, H * 0.49), (math.pi / 2, 0, 0), "props", dm["chalk"], extrude=0.002))
+    parts.append(text("clap_take", "TAKE 03", "chalk", 0.2, (W * 0.24, y - 0.002, H * 0.49), (math.pi / 2, 0, 0), "props", dm["chalk"], extrude=0.002))
+    parts.append(text("clap_dir", "DIR. P. DAVIS", "chalk", 0.19, (0, y - 0.002, H * 0.2), (math.pi / 2, 0, 0), "props", dm["chalk"], extrude=0.002))
     o = assemble("clapperboard", parts, (0, 0, 0), 0, "props")
     return o
 

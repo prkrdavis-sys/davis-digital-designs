@@ -1,9 +1,19 @@
 # Diorama handoff (scene `diorama`)
 
 ## Status
-- Not started. `src/worlds/scenes/diorama/index.tsx` is a placeholder; there are no `art/worlds/diorama/` or `public/worlds/diorama/` files.
+- In progress on `cursor/diorama-scene-516f`.
+- Blender pipeline and runtime scene written. Preview / bake / layers not rendered yet.
+
+## Done
+- `art/worlds/diorama/build.py` (+ `look.py`, `layout.py`, `build.sh`): kidney island + three islets, gravel path, arched bridges, trees, lanterns, pond, wooden table, placeholders for missing minis, import of `public/worlds/<scene>/lo/mini.glb` when present.
+- Steps: `rail`, `preview`, `bake`, `layers`, `pano`, `mini`. `layers` and `pano` are standalone re-runnable (`blend diorama --steps layers,pano`).
+- Runtime: `src/worlds/scenes/diorama/` hi (baked terrain + HEAD-checked minis + tilt-shift + dust), lo (LayerStack + sparkles), parked (remap + CoverPanel).
 
 ## Inputs you depend on
-- Miniatures from the other worlds at `public/worlds/<scene>/lo/mini.glb`. On your base branch these exist for: `dna`, `garden`, `greenhouse`, `planes` (check with `ls public/worlds/*/lo/mini.glb`). The rest (pinball, snowglobe, dunes, everest, bubbles, doors, museum) are being built on other branches in parallel and will be merged later.
-- So: at runtime, HEAD-check each mini and show a tasteful placeholder (a small glossy primitive on a plinth in that world's palette) for missing ones. In Blender, import whichever minis exist and use the same placeholders for the others. Make `layers` and `pano` re-runnable on their own (`blend diorama --steps layers,pano`), so they can be re-rendered once every mini is merged.
-- The homepage palette is `home` in `src/lib/worlds.ts`; each world's palette is there too.
+- Miniatures at `public/worlds/<scene>/lo/mini.glb`. On this branch: `dna`, `garden`, `greenhouse`, `planes`. The rest (pinball, snowglobe, dunes, everest, bubbles, doors, museum) use glossy palette placeholders until they merge.
+- Homepage palette is `home` in `src/lib/worlds.ts`.
+
+## Next
+1. Fetch venice_sunset HDRI and iterate Cycles `--preview` stills (cta / mid / outro, day + night).
+2. Bake terrain, export rails / mini, optimize GLBs.
+3. Render layers + pano; screenshot every chapter.

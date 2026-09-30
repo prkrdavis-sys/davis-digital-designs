@@ -5,9 +5,10 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useTexture } from "@react-three/drei";
 import * as THREE from "three";
 import type { Variant } from "@/worlds/types";
-import { node, useWorldGLTF } from "@/components/three/engine/assets";
-import { lightmapUrls, TILE_SIZE, TILE_URLS, type GreenhouseMeta } from "@/worlds/scenes/greenhouse/data";
-import { floorMaterial, glassMaterial, skyMaterial, type Atmos } from "@/worlds/scenes/greenhouse/materials";
+import { useWorldGLTF } from "@/components/three/engine/assets";
+import { lightmapExposure, lightmapUrls, TILE_SIZE, TILE_URLS, type GreenhouseMeta } from "@/worlds/scenes/greenhouse/data";
+import { floorMaterial, glassMaterial, skyMaterial, withSunShadow } from "@/worlds/scenes/greenhouse/materials";
+import type { sunVisUniforms } from "@/worlds/scenes/greenhouse/sunvis";
 
 /** Per-variant look of the static set. */
 export const ARCH_LOOK: Record<Variant, { envGain: number; floorEnv: number; caustic: number; causticColor: string; shade: number; glassEnv: number; glint: number; grime: string; grimeAmount: number; skyGain: number; skyHot: number; disc: number; halo: number; bakeGain: number }> = {
@@ -37,18 +38,28 @@ function useSetTextures(variant: Variant) {
   }, [color, data]);
 }
 
-export function Architecture({ meta, variant, atmos, lightDir, lightColor }: { meta: GreenhouseMeta; variant: Variant; atmos: Atmos; lightDir: THREE.Vector3; lightColor: THREE.Color }) {
+/** Which runtime material each exported primitive gets, keyed by its Blender material name. */
+type Part = "paint" | "gilt" | "masonry" | "wire" | "glass" | "floor";
+const PARTS: Record<string, Part> = { lm_paint: "paint", lm_gilt: "gilt", lm_masonry: "masonry", rt_wire: "wire", rt_glass: "glass", rt_floor: "floor" };
+
+export function Architecture({ meta, variant, vis, lightDir, lightColor }: { meta: GreenhouseMeta; variant: Variant; vis: ReturnType<typeof sunVisUniforms>; lightDir: THREE.Vector3; lightColor: THREE.Color }) {
   const gltf = useWorldGLTF("greenhouse", "arch.glb");
   const tex = useSetTextures(variant);
   const look = ARCH_LOOK[variant];
   const scene = useThree((s) => s.scene);
 
   const mats = useMemo(() => {
-    const baked = (map: THREE.Texture, rough: number) =>
-      new THREE.MeshStandardMaterial({ color: "#000000", emissive: "#ffffff", emissiveMap: map, emissiveIntensity: 2 * look.bakeGain, roughness: rough, metalness: 0, envMapIntensity: 0.35 });
+    const lm = lightmapExposure(meta, variant);
+    const gain = (e: number) => Math.pow(2, -e) * look.bakeGain;
+    // Baked diffuse GI arrives as emission on a black base; the live sun and environment add only the sheen.
+    const baked = (key: string, map: THREE.Texture, exposure: number, rough: number, env: number) =>
+      withSunShadow(new THREE.MeshStandardMaterial({ color: "#000000", emissive: "#ffffff", emissiveMap: map, emissiveIntensity: gain(exposure), roughness: rough, metalness: 0, envMapIntensity: env }), vis, key);
+    const gilt = withSunShadow(new THREE.MeshStandardMaterial({ color: "#e2b86c", metalness: 1, roughness: 0.32, emissive: "#ffffff", emissiveMap: tex.iron, emissiveIntensity: gain(lm.iron) * 0.35, envMapIntensity: 1.4 * look.envGain }), vis, "gilt");
     return {
-      iron: baked(tex.iron, 0.38),
-      masonry: baked(tex.masonry, 0.85),
+      paint: baked("paint", tex.iron, lm.iron, 0.4, 0.35 * look.envGain),
+      gilt,
+      masonry: baked("masonry", tex.masonry, lm.masonry, 0.85, 0.15 * look.envGain),
+      wire: withSunShadow(new THREE.MeshStandardMaterial({ color: "#1b1a17", roughness: 0.45, metalness: 0.6, envMapIntensity: look.envGain }), vis, "wire"),
       floor: floorMaterial({
         albedo: tex.albedo,
         normal: tex.normal,
@@ -57,36 +68,37 @@ export function Architecture({ meta, variant, atmos, lightDir, lightColor }: { m
         env: tex.env,
         bounds: meta.floor.bounds,
         tile: TILE_SIZE,
-        lmScale: Math.pow(2, -meta.lightmapExposure),
+        lmScale: gain(lm.floor),
         envGain: look.floorEnv,
         caustic: look.caustic,
         causticColor: look.causticColor,
         shade: look.shade,
-        atmos,
       }),
-      glass: glassMaterial({ env: tex.env, envGain: look.glassEnv, lightDir, lightColor, glint: look.glint, grime: look.grime, grimeAmount: look.grimeAmount, atmos }),
+      glass: glassMaterial({ env: tex.env, envGain: look.glassEnv, lightDir, lightColor, glint: look.glint, grime: look.grime, grimeAmount: look.grimeAmount }),
       sky: skyMaterial({ sky: tex.sky, gain: look.skyGain, hot: look.skyHot, lightDir, lightColor, disc: look.disc, halo: look.halo }),
     };
-  }, [tex, look, meta, atmos, lightDir, lightColor]);
+  }, [tex, look, meta, variant, vis, lightDir, lightColor]);
 
-  const parts = useMemo(() => {
-    const out: Record<"iron" | "masonry" | "floor" | "glass", THREE.Mesh> = {
-      iron: node<THREE.Mesh>(gltf, "iron"),
-      masonry: node<THREE.Mesh>(gltf, "masonry"),
-      floor: node<THREE.Mesh>(gltf, "floor"),
-      glass: node<THREE.Mesh>(gltf, "glass"),
-    };
+  const meshes = useMemo(() => {
+    const out: { mesh: THREE.Mesh; part: Part }[] = [];
+    gltf.scene.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const name = (mesh.material as THREE.Material).name;
+      const part = PARTS[name];
+      if (!part) throw new Error(`greenhouse arch.glb: unexpected material "${name}"`);
+      out.push({ mesh, part });
+    });
     return out;
   }, [gltf]);
 
   useEffect(() => {
-    parts.iron.material = mats.iron;
-    parts.masonry.material = mats.masonry;
-    parts.floor.material = mats.floor;
-    parts.glass.material = mats.glass;
-    parts.glass.renderOrder = 20;
-    for (const m of Object.values(parts)) m.frustumCulled = false;
-  }, [parts, mats]);
+    for (const { mesh, part } of meshes) {
+      mesh.material = mats[part];
+      mesh.frustumCulled = false;
+      if (part === "glass") mesh.renderOrder = 20;
+    }
+  }, [meshes, mats]);
 
   useEffect(() => {
     const env = tex.env.clone();

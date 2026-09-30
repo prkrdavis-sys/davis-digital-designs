@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 /**
- * art/optimize.mjs, but keeps unused vertex attributes: the lightmap UVs
- * (TEXCOORD_1) have no texture in the GLB (lightmaps ship as separate webp
- * files per variant), so the default prune would strip them.
+ * art/optimize.mjs, but keeps the lightmap UVs: TEXCOORD_1 has no texture in
+ * the GLB (lightmaps ship as separate webp files per variant), so the default
+ * prune would strip it. Normal and roughness maps are shrunk to --detail px
+ * (the desk is mostly seen through depth of field) and roughness goes to ETC1S.
  *
- *   node art/worlds/snowglobe/optimize-lm.mjs <in.glb> <out.glb> [--size 2048] [--tex mixed|none]
+ *   node art/worlds/snowglobe/optimize-lm.mjs <in.glb> <out.glb> [--size 2048] [--detail 512] [--tex mixed|none]
  */
 import { execFileSync } from "node:child_process";
 import { copyFileSync, mkdirSync, rmSync, statSync } from "node:fs";
@@ -18,6 +19,7 @@ const opt = (name, fallback) => {
   return i >= 0 ? args[i + 1] : fallback;
 };
 const size = opt("size", "2048");
+const detail = opt("detail", "512");
 const tex = opt("tex", "mixed");
 
 const bin = join(dirname(new URL(import.meta.url).pathname), "..", "..", "..", "node_modules", ".bin", "gltf-transform");
@@ -28,11 +30,16 @@ const run = (...a) => execFileSync(bin, a, { stdio: ["ignore", "ignore", "inheri
 
 let current = join(tmp, "1.glb");
 run("optimize", input, current, "--compress", "false", "--texture-compress", "false", "--texture-size", size, "--flatten", "false", "--join", "false", "--palette", "false", "--instance", "false", "--simplify", "false", "--prune-attributes", "false");
+for (const pattern of ["*normal*", "*rough*"]) {
+  const next = join(tmp, `r-${pattern.replaceAll("*", "")}.glb`);
+  run("resize", current, next, "--pattern", pattern, "--width", detail, "--height", detail);
+  current = next;
+}
 if (tex === "mixed") {
   const a = join(tmp, "2.glb");
-  run("uastc", current, a, "--level", "2", "--rdo", "--zstd", "18", "--slots", "{normalTexture,occlusionTexture,metallicRoughnessTexture,clearcoatNormalTexture}");
+  run("uastc", current, a, "--level", "2", "--rdo", "--rdo-lambda", "4", "--zstd", "18", "--slots", "{normalTexture,clearcoatNormalTexture}");
   const b = join(tmp, "3.glb");
-  run("etc1s", a, b, "--quality", "255", "--compression", "2", "--slots", "{baseColorTexture,emissiveTexture,sheenColorTexture,transmissionTexture}");
+  run("etc1s", a, b, "--quality", "255", "--compression", "2", "--slots", "{baseColorTexture,emissiveTexture,sheenColorTexture,transmissionTexture,metallicRoughnessTexture,occlusionTexture}");
   current = b;
 }
 const out = join(tmp, "4.glb");
