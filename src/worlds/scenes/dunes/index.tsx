@@ -135,7 +135,7 @@ function Hi({ variant, mode }: SceneComponentProps) {
 
 function Lo({ variant }: SceneComponentProps) {
   return (
-    <LayerStack scene="dunes" variant={variant} parallax={0.04} dolly={0.14} focus={0.66}>
+    <LayerStack scene="dunes" variant={variant} parallax={0.03} dolly={0.14} focus={0.66}>
       <LoSand variant={variant} />
     </LayerStack>
   );

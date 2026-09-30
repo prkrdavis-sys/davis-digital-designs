@@ -90,14 +90,14 @@ const fragment = /* glsl */ `
     float warp = vnoise(q * 0.045) * 7.0 + vnoise(q * 0.19 + 3.0) * 1.6;
     float ph1 = (p.x + warp) / 0.45 + vnoise(q * 0.7) * 0.5;
     float ph2 = (p.x * 0.85 + p.z * 0.3 + warp * 1.4) / 1.6;
-    float w1 = 1.0 - smoothstep(0.18, 0.5, fwidth(ph1));
-    float w2 = 1.0 - smoothstep(0.18, 0.5, fwidth(ph2));
+    float w1 = 1.0 - smoothstep(0.06, 0.24, fwidth(ph1));
+    float w2 = 1.0 - smoothstep(0.06, 0.24, fwidth(ph2));
     float s1 = cos(6.2832 * ph1 + 0.7 * sin(6.2832 * ph1));
     float s2 = cos(6.2832 * ph2 + 0.5 * sin(6.2832 * ph2));
-    float grad = (s1 * 0.16 * w1 + s2 * 0.1 * w2) * stoss;
+    float grad = (s1 * 0.06 * w1 + s2 * 0.04 * w2) * stoss;
     // Slip faces: avalanche grooves running down the fall line.
     float across = dot(q, normalize(B.xz + 1e-4));
-    float grooves = (vnoise(vec2(across * 0.7, dot(q, T.xz) * 0.04)) - 0.5) * (1.0 - stoss) * 0.35 * (1.0 - smoothstep(0.3, 1.0, fwidth(across * 0.7)));
+    float grooves = (vnoise(vec2(across * 0.7, dot(q, T.xz) * 0.04)) - 0.5) * (1.0 - stoss) * 0.14 * (1.0 - smoothstep(0.15, 0.6, fwidth(across * 0.7)));
     vec3 Nd = normalize(Nm - T * grad + B * grooves);
     float near = 1.0 - smoothstep(6.0, 40.0, dist);
     vec3 gn = texture2D(tGrainN, q / 1.4).xyz * 2.0 - 1.0;
@@ -111,10 +111,11 @@ const fragment = /* glsl */ `
     albedo *= mix(1.0, 0.82 + g * 0.36, near);
     albedo *= 1.0 - 0.07 * max(0.0, -s1) * w1 * stoss;
 
+    // Ripple relief changes only the direct sun term (the bake stores E / pi); skylight is untouched.
     float ndlM = max(dot(Nm, L), 0.0);
     float ndlD = max(dot(Nd, L), 0.0);
-    float ratio = mix(1.0, clamp(ndlD / max(ndlM, 0.08), 0.0, 3.0), vis);
-    vec3 col = albedo * irr * ratio;
+    vec3 direct = uSunColor * uSunIntensity * 0.3183 * vis;
+    vec3 col = albedo * max(irr + direct * (ndlD - ndlM), irr * 0.4);
 
     // Glints: a few grains catch the sun like mica.
     vec2 gc = q * 26.0;
