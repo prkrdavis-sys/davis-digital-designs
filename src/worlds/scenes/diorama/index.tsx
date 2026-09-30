@@ -23,6 +23,7 @@ const RAIL = "/worlds/diorama/rails.json";
 export function preload() {
   void loadRail(RAIL);
   preloadWorldGLTF("diorama", "terrain-day.glb");
+  preloadWorldGLTF("diorama", "terrain-night.glb");
   preloadMinis();
 }
 
@@ -91,6 +92,7 @@ function Hi({ variant, mode }: SceneComponentProps) {
   });
 
   const focus = useMemo(() => new THREE.Vector3(), []);
+  const fog = useMemo(() => new THREE.Fog(pal.fog, 16, 42), [pal.fog]);
   usePostFX(
     () => {
       const ts = new TiltShiftEffect({
@@ -117,6 +119,9 @@ function Hi({ variant, mode }: SceneComponentProps) {
     drift.current += Math.min(dt, 0.05);
     const s = mode === "parked" ? 1.72 : time.s;
     focusAt(layout, s, focus);
+    const k = THREE.MathUtils.smoothstep(s, 0.35, 1.85);
+    fog.near = THREE.MathUtils.lerp(15, 28, k);
+    fog.far = THREE.MathUtils.lerp(38, 88, k);
     const fx = tilt.current;
     if (fx) {
       // Tighten the band while we are close on the garden; open it as we pull back.
@@ -130,7 +135,7 @@ function Hi({ variant, mode }: SceneComponentProps) {
   return (
     <>
       <RailCamera rail={rail} parallax={0.22} look={0.03} remap={remap} />
-      <fog attach="fog" args={[pal.fog, 18, 48]} />
+      <primitive object={fog} attach="fog" />
       <Studio night={night} />
       <hemisphereLight args={[night ? "#2a2458" : "#ffd8c4", night ? "#080610" : "#c8b090", night ? 0.28 : 0.75]} />
       <directionalLight position={[7, 8, 6]} intensity={night ? 0.28 : 2.0} color={night ? "#aab6ff" : "#ffd2a0"} />
