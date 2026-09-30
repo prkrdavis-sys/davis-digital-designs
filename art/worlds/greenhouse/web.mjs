@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
  * Web textures for the greenhouse runtime (everything except GLBs and layers):
- *   lightmaps  art/out/greenhouse/lightmaps/*.png -> public/.../hi/lm-*.webp (median-cleaned)
+ *   lightmaps  art/out/greenhouse/lightmaps/*.png -> public/.../hi/lm-*.webp
  *   sky        sky-{day,night}.png, env-{day,night}.png -> hi/*.webp
+ *   sunvis     sunvis-{day,night}.png -> hi/ (single channel)
  *   tiles      Poly Haven floor scan -> hi/tile-{albedo,normal,rough}.webp
  */
 import { existsSync, mkdirSync } from "node:fs";
@@ -39,6 +40,18 @@ const jobs = {
     for (const v of ["day", "night"]) {
       await webp(join(OUT, `sky-${v}.png`), join(HI, `sky-${v}.webp`), { quality: 84 });
       await webp(join(OUT, `env-${v}.png`), join(HI, `env-${v}.webp`), { quality: 80 });
+    }
+  },
+  async sunvis() {
+    for (const v of ["day", "night"]) {
+      const src = join(OUT, `sunvis-${v}.png`);
+      if (!existsSync(src)) {
+        console.warn(`[web] missing ${src}`);
+        continue;
+      }
+      const dst = join(HI, `sunvis-${v}.png`);
+      const info = await sharp(src).extractChannel(0).png({ compressionLevel: 9, palette: false }).toFile(dst);
+      console.log(`[web] sunvis-${v}.png ${info.width}x${info.height} ${(info.size / 1024).toFixed(0)} KB`);
     }
   },
   async tiles() {

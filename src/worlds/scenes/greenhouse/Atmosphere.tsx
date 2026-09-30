@@ -1,29 +1,24 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { useFrame, useThree } from "@react-three/fiber";
+import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { Variant } from "@/worlds/types";
 import type { Beam } from "@/worlds/scenes/greenhouse/data";
-import { beamGeometry, beamMaterial, MAX_BEAMS, moteMaterial, type Atmos } from "@/worlds/scenes/greenhouse/materials";
+import { beamGeometry, beamMaterial, moteMaterial } from "@/worlds/scenes/greenhouse/materials";
+import type { sunVisUniforms } from "@/worlds/scenes/greenhouse/sunvis";
 
 const LOOK: Record<Variant, { beam: number; beamWidth: number; mote: string; moteLit: string; moteBase: number; count: number }> = {
-  day: { beam: 0.16, beamWidth: 0.42, mote: "#fff4de", moteLit: "#ffd9a0", moteBase: 0.1, count: 2600 },
-  night: { beam: 0.07, beamWidth: 0.5, mote: "#aebfff", moteLit: "#c9d6ff", moteBase: 0.05, count: 1400 },
+  day: { beam: 0.07, beamWidth: 0.42, mote: "#fff4de", moteLit: "#ffd9a0", moteBase: 0.08, count: 2600 },
+  night: { beam: 0.035, beamWidth: 0.5, mote: "#aebfff", moteLit: "#c9d6ff", moteBase: 0.05, count: 1400 },
 };
 
-/** Scene fog, sun (or moon) shafts traced through the glazing, and drifting dust and pollen. */
-export function Atmosphere({ variant, atmos, beams, lightDir, lightColor }: { variant: Variant; atmos: Atmos; beams: Beam[]; lightDir: THREE.Vector3; lightColor: THREE.Color }) {
+/**
+ * Crisp sun (moon) shafts traced through the glazing, on top of the ray-marched
+ * haze (Haze.ts), and drifting dust and pollen that sparkle where light reaches.
+ */
+export function Atmosphere({ variant, beams, lightDir, lightColor, vis }: { variant: Variant; beams: Beam[]; lightDir: THREE.Vector3; lightColor: THREE.Color; vis: ReturnType<typeof sunVisUniforms> }) {
   const look = LOOK[variant];
-  const scene = useThree((s) => s.scene);
-
-  useEffect(() => {
-    const fog = new THREE.FogExp2(atmos.fogColor, atmos.fogDensity);
-    scene.fog = fog;
-    return () => {
-      scene.fog = null;
-    };
-  }, [scene, atmos]);
 
   const beamGeo = useMemo(() => beamGeometry(beams), [beams]);
   const beamMat = useMemo(() => beamMaterial({ color: lightColor.clone().multiplyScalar(variant === "day" ? 1 : 0.8), lightDir, width: look.beamWidth, intensity: look.beam }), [lightColor, lightDir, look, variant]);
@@ -40,18 +35,7 @@ export function Atmosphere({ variant, atmos, beams, lightDir, lightColor }: { va
     g.setAttribute("aSeed", new THREE.BufferAttribute(seed, 3));
     return g;
   }, [look.count]);
-  const moteMat = useMemo(() => {
-    const m = moteMaterial({ color: new THREE.Color(look.mote), litColor: new THREE.Color(look.moteLit), base: look.moteBase, beamWidth: look.beamWidth * 0.8 });
-    const n = Math.min(MAX_BEAMS, beams.length);
-    const A = m.uniforms.uA.value as THREE.Vector3[];
-    const B = m.uniforms.uB.value as THREE.Vector3[];
-    for (let i = 0; i < n; i++) {
-      A[i].set(...beams[i].a);
-      B[i].set(...beams[i].b);
-    }
-    m.uniforms.uBeams.value = n;
-    return m;
-  }, [beams, look]);
+  const moteMat = useMemo(() => moteMaterial({ color: new THREE.Color(look.mote), litColor: new THREE.Color(look.moteLit), base: look.moteBase, vis }), [look, vis]);
 
   useEffect(
     () => () => {

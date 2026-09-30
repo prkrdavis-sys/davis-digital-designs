@@ -551,8 +551,9 @@ def step_live():
     for o in objs:
         export.tag(o, kind="lantern" if o.name.startswith("Lantern") else "scan")
     rt_leaf = mat.principled("foliage", base=(1, 1, 1), rough=0.5)
+    rt_trunk = mat.principled("trunk", base=gm.lin("#6e5a40"), rough=0.85)
     for name, mb in fol.items():
-        o = mb.build(f"foliage_{name}", [rt_leaf, rt_leaf, mat.principled("trunk", base=gm.lin("#7a6548"), rough=0.85)], color_attr=True, smooth_angle=60)
+        o = mb.build(f"foliage_{name}", [rt_leaf, rt_leaf, rt_trunk], color_attr=True, smooth_angle=60)
         export.tag(o, kind="foliage")
         objs.append(o)
     export.glb(OUT / "live.glb", objs, export_vertex_color="ACTIVE")
@@ -631,6 +632,11 @@ def step_meta():
     plants.link_instances(inst)
     build_foliage_objects(fol)
     meta = {"floor": {"bounds": [round(x, 4) for x in P.floor_bounds], "lm": list(FLOOR_LM)}}
+    prev_path = PUB / "hi" / "greenhouse.json"
+    prev = json.loads(prev_path.read_text()) if prev_path.exists() else {}
+    for key in ("lm", "sunvis"):
+        if key in prev:
+            meta[key] = prev[key]
     lm_info = OUT / "lightmaps" / LM_JSON
     if lm_info.exists():
         info = json.loads(lm_info.read_text())
@@ -880,6 +886,92 @@ def step_mini():
     export.glb(OUT / "mini.glb", objs)
 
 
+SUNVIS = {"min": (-7.3, -22.6, -0.1), "max": (7.3, 7.4, 13.4), "cell": 0.25, "rays": 6, "cols": 8}
+
+
+def _world_triangles(objs):
+    """World-space triangle soup of `objs` (evaluated), as numpy arrays."""
+    dg = bpy.context.evaluated_depsgraph_get()
+    vs, ts, off = [], [], 0
+    for o in objs:
+        ev = o.evaluated_get(dg)
+        me = ev.to_mesh()
+        me.calc_loop_triangles()
+        n = len(me.vertices)
+        if n and len(me.loop_triangles):
+            co = np.empty(n * 3, dtype=np.float32)
+            me.vertices.foreach_get("co", co)
+            co = co.reshape(-1, 3)
+            M = np.array(o.matrix_world, dtype=np.float32)
+            co = co @ M[:3, :3].T + M[:3, 3]
+            tri = np.empty(len(me.loop_triangles) * 3, dtype=np.int32)
+            me.loop_triangles.foreach_get("vertices", tri)
+            vs.append(co)
+            ts.append(tri.reshape(-1, 3) + off)
+            off += n
+        ev.to_mesh_clear()
+    return np.concatenate(vs), np.concatenate(ts)
+
+
+def step_sunvis():
+    """Sun (moon) visibility on a 25 cm grid: shadows live foliage and drives the ray-marched haze at runtime."""
+    from mathutils.bvhtree import BVHTree
+
+    scene.reset()
+    plants.reset()
+    P, groups, chunks, fol = build_static("day")
+    inst, lanterns = plants.place_scans(P)
+    occluders = groups["iron"] + groups["masonry"] + plants.link_instances(inst) + build_foliage_objects(fol) + plants.link_instances(lanterns)
+    verts, tris = _world_triangles(occluders)
+    cli.log("sunvis occluders", len(tris), "tris")
+    bvh = BVHTree.FromPolygons(verts.tolist(), tris.tolist(), all_triangles=True)
+    del verts, tris
+    lo, hi, cell = V(SUNVIS["min"]), V(SUNVIS["max"]), SUNVIS["cell"]
+    dims = [int(math.ceil((hi[i] - lo[i]) / cell)) for i in range(3)]
+    nx, ny, nz = dims
+    cols = SUNVIS["cols"]
+    rows = int(math.ceil(nz / cols))
+    rng = np.random.default_rng(9)
+    jit = (rng.random((SUNVIS["rays"], 3)) - 0.5) * cell
+    out = {}
+    for variant in ("day", "night"):
+        L = V(sky_info(variant)["dir"]).normalized()
+        vis = np.zeros((nz, ny, nx), dtype=np.float32)
+        for k in range(nz):
+            z = lo.z + (k + 0.5) * cell
+            for j in range(ny):
+                y = lo.y + (j + 0.5) * cell
+                for i in range(nx):
+                    x = lo.x + (i + 0.5) * cell
+                    lit = 0
+                    for dx, dy, dz in jit:
+                        if bvh.ray_cast(V((x + dx, y + dy, z + dz)), L, 60.0)[0] is None:
+                            lit += 1
+                    vis[k, j, i] = lit / len(jit)
+            if k % 9 == 0:
+                cli.log("sunvis", variant, f"slice {k}/{nz}")
+        atlas = np.zeros((rows * ny, cols * nx), dtype=np.uint8)
+        for k in range(nz):
+            r, c = divmod(k, cols)
+            atlas[r * ny : (r + 1) * ny, c * nx : (c + 1) * nx] = np.round(vis[k] * 255).astype(np.uint8)
+        # Row 0 of the PNG is voxel row y = 0 of slice 0 (the runtime reads it top-down).
+        img = bpy.data.images.new(f"sunvis-{variant}", atlas.shape[1], atlas.shape[0], alpha=False)
+        px = np.repeat(atlas[::-1, :, None].astype(np.float32) / 255.0, 4, axis=2)
+        px[..., 3] = 1.0
+        img.pixels.foreach_set(px.ravel())
+        path = OUT / f"sunvis-{variant}.png"
+        img.filepath_raw = str(path)
+        img.file_format = "PNG"
+        img.colorspace_settings.name = "Non-Color"
+        img.save()
+        out[variant] = float(vis.mean())
+        cli.log("sunvis", variant, path.name, f"mean {out[variant]:.2f}")
+    meta_path = PUB / "hi" / "greenhouse.json"
+    meta = json.loads(meta_path.read_text())
+    meta["sunvis"] = {"min": [round(c, 4) for c in lo], "cell": cell, "dims": dims, "cols": cols}
+    meta_path.write_text(json.dumps(meta, separators=(",", ":")))
+
+
 def step_stats():
     """Triangle counts per group and per model function (to find what to trim)."""
     import collections
@@ -923,6 +1015,7 @@ def step_stats():
 
 STEPS = {
     "stats": step_stats,
+    "sunvis": step_sunvis,
     "bake": step_bake,
     "live": step_live,
     "rail": step_rail,

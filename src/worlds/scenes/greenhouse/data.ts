@@ -34,10 +34,19 @@ export interface LightmapExposure {
   floor: number;
 }
 
+/** Sun visibility grid (Blender coordinates): corner, cell size (m), voxel counts, slices per atlas row. */
+export interface SunVisMeta {
+  min: Vec3;
+  cell: number;
+  dims: [number, number, number];
+  cols: number;
+}
+
 export interface GreenhouseMeta {
   /** Floor lightmap: planar projection of Blender XY bounds (x0, y0, x1, y1). */
   floor: { bounds: [number, number, number, number]; lm: [number, number] };
   lm?: Partial<Record<Variant, LightmapExposure>>;
+  sunvis?: SunVisMeta;
   day: SkyMeta;
   night: SkyMeta;
   bulbs: Vec3[];

@@ -7,7 +7,8 @@ import * as THREE from "three";
 import type { Variant } from "@/worlds/types";
 import { useWorldGLTF } from "@/components/three/engine/assets";
 import { lightmapExposure, lightmapUrls, TILE_SIZE, TILE_URLS, type GreenhouseMeta } from "@/worlds/scenes/greenhouse/data";
-import { floorMaterial, glassMaterial, skyMaterial, type Atmos } from "@/worlds/scenes/greenhouse/materials";
+import { floorMaterial, glassMaterial, skyMaterial, withSunShadow } from "@/worlds/scenes/greenhouse/materials";
+import type { sunVisUniforms } from "@/worlds/scenes/greenhouse/sunvis";
 
 /** Per-variant look of the static set. */
 export const ARCH_LOOK: Record<Variant, { envGain: number; floorEnv: number; caustic: number; causticColor: string; shade: number; glassEnv: number; glint: number; grime: string; grimeAmount: number; skyGain: number; skyHot: number; disc: number; halo: number; bakeGain: number }> = {
@@ -41,7 +42,7 @@ function useSetTextures(variant: Variant) {
 type Part = "paint" | "gilt" | "masonry" | "wire" | "glass" | "floor";
 const PARTS: Record<string, Part> = { lm_paint: "paint", lm_gilt: "gilt", lm_masonry: "masonry", rt_wire: "wire", rt_glass: "glass", rt_floor: "floor" };
 
-export function Architecture({ meta, variant, atmos, lightDir, lightColor }: { meta: GreenhouseMeta; variant: Variant; atmos: Atmos; lightDir: THREE.Vector3; lightColor: THREE.Color }) {
+export function Architecture({ meta, variant, vis, lightDir, lightColor }: { meta: GreenhouseMeta; variant: Variant; vis: ReturnType<typeof sunVisUniforms>; lightDir: THREE.Vector3; lightColor: THREE.Color }) {
   const gltf = useWorldGLTF("greenhouse", "arch.glb");
   const tex = useSetTextures(variant);
   const look = ARCH_LOOK[variant];
@@ -50,14 +51,15 @@ export function Architecture({ meta, variant, atmos, lightDir, lightColor }: { m
   const mats = useMemo(() => {
     const lm = lightmapExposure(meta, variant);
     const gain = (e: number) => Math.pow(2, -e) * look.bakeGain;
-    const baked = (map: THREE.Texture, exposure: number, rough: number, env: number) =>
-      new THREE.MeshStandardMaterial({ color: "#000000", emissive: "#ffffff", emissiveMap: map, emissiveIntensity: gain(exposure), roughness: rough, metalness: 0, envMapIntensity: env });
-    const gilt = new THREE.MeshStandardMaterial({ color: "#e2b86c", metalness: 1, roughness: 0.32, emissive: "#ffffff", emissiveMap: tex.iron, emissiveIntensity: gain(lm.iron) * 0.35, envMapIntensity: 1.4 * look.envGain });
+    // Baked diffuse GI arrives as emission on a black base; the live sun and environment add only the sheen.
+    const baked = (key: string, map: THREE.Texture, exposure: number, rough: number, env: number) =>
+      withSunShadow(new THREE.MeshStandardMaterial({ color: "#000000", emissive: "#ffffff", emissiveMap: map, emissiveIntensity: gain(exposure), roughness: rough, metalness: 0, envMapIntensity: env }), vis, key);
+    const gilt = withSunShadow(new THREE.MeshStandardMaterial({ color: "#e2b86c", metalness: 1, roughness: 0.32, emissive: "#ffffff", emissiveMap: tex.iron, emissiveIntensity: gain(lm.iron) * 0.35, envMapIntensity: 1.4 * look.envGain }), vis, "gilt");
     return {
-      paint: baked(tex.iron, lm.iron, 0.4, 0.35 * look.envGain),
+      paint: baked("paint", tex.iron, lm.iron, 0.4, 0.35 * look.envGain),
       gilt,
-      masonry: baked(tex.masonry, lm.masonry, 0.85, 0.15 * look.envGain),
-      wire: new THREE.MeshStandardMaterial({ color: "#1b1a17", roughness: 0.45, metalness: 0.6, envMapIntensity: look.envGain }),
+      masonry: baked("masonry", tex.masonry, lm.masonry, 0.85, 0.15 * look.envGain),
+      wire: withSunShadow(new THREE.MeshStandardMaterial({ color: "#1b1a17", roughness: 0.45, metalness: 0.6, envMapIntensity: look.envGain }), vis, "wire"),
       floor: floorMaterial({
         albedo: tex.albedo,
         normal: tex.normal,
@@ -71,12 +73,11 @@ export function Architecture({ meta, variant, atmos, lightDir, lightColor }: { m
         caustic: look.caustic,
         causticColor: look.causticColor,
         shade: look.shade,
-        atmos,
       }),
-      glass: glassMaterial({ env: tex.env, envGain: look.glassEnv, lightDir, lightColor, glint: look.glint, grime: look.grime, grimeAmount: look.grimeAmount, atmos }),
+      glass: glassMaterial({ env: tex.env, envGain: look.glassEnv, lightDir, lightColor, glint: look.glint, grime: look.grime, grimeAmount: look.grimeAmount }),
       sky: skyMaterial({ sky: tex.sky, gain: look.skyGain, hot: look.skyHot, lightDir, lightColor, disc: look.disc, halo: look.halo }),
     };
-  }, [tex, look, meta, variant, atmos, lightDir, lightColor]);
+  }, [tex, look, meta, variant, vis, lightDir, lightColor]);
 
   const meshes = useMemo(() => {
     const out: { mesh: THREE.Mesh; part: Part }[] = [];
