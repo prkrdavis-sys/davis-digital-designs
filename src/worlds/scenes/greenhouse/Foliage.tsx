@@ -5,16 +5,21 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { Variant } from "@/worlds/types";
 import { useWorldGLTF } from "@/components/three/engine/assets";
-import { makeLeafUniforms, patchLeaf } from "@/worlds/scenes/greenhouse/materials";
+import { makeLeafUniforms, patchLeaf, withSunShadow } from "@/worlds/scenes/greenhouse/materials";
+import type { sunVisUniforms } from "@/worlds/scenes/greenhouse/sunvis";
 
-const TRANSLUCENCY: Record<Variant, string> = { day: "#d9c25a", night: "#1a2233" };
+const TRANSLUCENCY: Record<Variant, { color: string; base: number }> = {
+  day: { color: "#e8d27a", base: 0.05 },
+  night: { color: "#1a2233", base: 0.02 },
+};
 
 /**
  * Everything live-lit: Poly Haven plant scans (GPU-instanced by the optimizer),
  * procedural palms, ivy and pothos, and the brass lanterns. Leaves sway (scans)
- * or flutter (procedural vines) and glow when the sun is behind them.
+ * or flutter (procedural vines), sit in the baked sun-visibility shadows, and
+ * glow when the sun is behind them.
  */
-export function Foliage({ variant, lightDir }: { variant: Variant; lightDir: THREE.Vector3 }) {
+export function Foliage({ variant, lightDir, vis }: { variant: Variant; lightDir: THREE.Vector3; vis: ReturnType<typeof sunVisUniforms> }) {
   const gltf = useWorldGLTF("greenhouse", "live.glb");
   const uniforms = useMemo(() => makeLeafUniforms(), []);
 
@@ -37,9 +42,9 @@ export function Foliage({ variant, lightDir }: { variant: Variant; lightDir: THR
             l.roughness = 0.05;
             l.depthWrite = false;
           }
-          m = l;
-        } else if (name === "trunk") {
-          m = new THREE.MeshStandardMaterial({ color: src.color, roughness: 0.9 });
+          m = withSunShadow(l, vis, name);
+        } else if (name.startsWith("trunk")) {
+          m = withSunShadow(new THREE.MeshStandardMaterial({ color: src.color, roughness: 0.9, envMapIntensity: 0.8 }), vis, "trunk");
         } else {
           const leaf = new THREE.MeshStandardMaterial({
             map: src.map ?? null,
@@ -48,9 +53,9 @@ export function Foliage({ variant, lightDir }: { variant: Variant; lightDir: THR
             side: THREE.DoubleSide,
             roughness: 0.62,
             metalness: 0,
-            envMapIntensity: 0.55,
+            envMapIntensity: 0.9,
           });
-          patchLeaf(leaf, uniforms, src.map ? "sway" : "flutter");
+          patchLeaf(leaf, uniforms, src.map ? "sway" : "flutter", vis);
           m = leaf;
         }
         cache.set(src, m);
@@ -60,12 +65,13 @@ export function Foliage({ variant, lightDir }: { variant: Variant; lightDir: THR
       mesh.frustumCulled = false;
     });
     return made;
-  }, [gltf, uniforms]);
+  }, [gltf, uniforms, vis]);
 
   useEffect(() => () => mats.forEach((m) => m.dispose()), [mats]);
 
   useEffect(() => {
-    uniforms.uTrans.value.set(TRANSLUCENCY[variant]);
+    uniforms.uTrans.value.set(TRANSLUCENCY[variant].color);
+    uniforms.uTransBase.value = TRANSLUCENCY[variant].base;
   }, [uniforms, variant]);
 
   const tmp = useMemo(() => new THREE.Vector3(), []);

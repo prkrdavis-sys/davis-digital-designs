@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { SUNVIS_GLSL, type sunVisUniforms } from "@/worlds/scenes/greenhouse/sunvis";
 
 /** Shared GLSL: equirect lookup matching Blender's environment layout (and three's). */
 const EQUIRECT = /* glsl */ `
@@ -19,21 +20,6 @@ const NOISE = /* glsl */ `
     return mix(a, b, f.z); }
   float fbm3(vec3 p) { float v = 0.0; float a = 0.5; for (int i = 0; i < 4; i++) { v += a * vnoise3(p); p *= 2.07; a *= 0.5; } return v; }
 `;
-
-const FOG = /* glsl */ `
-  uniform vec3 uFogColor;
-  uniform float uFogDensity;
-  vec3 applyFog(vec3 col, float dist) { return mix(col, uFogColor, 1.0 - exp(-uFogDensity * uFogDensity * dist * dist)); }
-`;
-
-export interface Atmos {
-  fogColor: THREE.Color;
-  fogDensity: number;
-}
-
-function fogUniforms(a: Atmos) {
-  return { uFogColor: { value: a.fogColor }, uFogDensity: { value: a.fogDensity } };
-}
 
 // --------------------------------------------------------------------------
 const floorVertex = /* glsl */ `
@@ -62,7 +48,6 @@ const floorFragment = /* glsl */ `
   varying vec3 vWorld;
   ${EQUIRECT}
   ${NOISE}
-  ${FOG}
 
   // Thin bright filaments drifting slowly: light refracted by old wavy glass and stirred leaves.
   float caustic(vec2 p, float t) {
@@ -103,7 +88,6 @@ const floorFragment = /* glsl */ `
     vec3 env = textureLod(tEnv, equirectUv(R), rough * 7.0).rgb * uEnvGain;
     col = col * (1.0 - F) + env * F * (1.0 - rough * 0.6);
 
-    col = applyFog(col, length(cameraPosition - vWorld));
     gl_FragColor = vec4(col, 1.0);
   }
 `;
@@ -121,7 +105,6 @@ export function floorMaterial(opts: {
   caustic: number;
   causticColor: string;
   shade: number;
-  atmos: Atmos;
 }) {
   for (const t of [opts.albedo, opts.normal, opts.rough]) {
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
@@ -144,7 +127,6 @@ export function floorMaterial(opts: {
       uCaustic: { value: opts.caustic },
       uCausticColor: { value: new THREE.Color(opts.causticColor) },
       uShade: { value: opts.shade },
-      ...fogUniforms(opts.atmos),
     },
   });
 }
@@ -177,7 +159,6 @@ const glassFragment = /* glsl */ `
   varying vec3 vTint;
   ${EQUIRECT}
   ${NOISE}
-  ${FOG}
 
   vec2 voronoi(vec2 x) {
     vec2 n = floor(x); vec2 f = fract(x); float md = 8.0; vec2 mr = vec2(0.0);
@@ -220,13 +201,11 @@ const glassFragment = /* glsl */ `
     vec3 rgb = refl * F + grime * g + uLightColor * glint + vec3(drop) * (refl * 0.6 + uLightColor * phase * 0.6);
     float a = clamp(g + drop * 0.35 + F * 0.25, 0.0, 1.0);
     rgb *= vTint;
-    float dist = length(cameraPosition - vWorld);
-    rgb = mix(rgb, uFogColor * a, 1.0 - exp(-uFogDensity * uFogDensity * dist * dist));
     gl_FragColor = vec4(rgb, a);
   }
 `;
 
-export function glassMaterial(opts: { env: THREE.Texture; envGain: number; lightDir: THREE.Vector3; lightColor: THREE.Color; glint: number; grime: string; grimeAmount: number; atmos: Atmos }) {
+export function glassMaterial(opts: { env: THREE.Texture; envGain: number; lightDir: THREE.Vector3; lightColor: THREE.Color; glint: number; grime: string; grimeAmount: number }) {
   return new THREE.ShaderMaterial({
     vertexShader: glassVertex,
     fragmentShader: glassFragment,
@@ -238,7 +217,6 @@ export function glassMaterial(opts: { env: THREE.Texture; envGain: number; light
       uGlint: { value: opts.glint },
       uGrime: { value: new THREE.Color(opts.grime) },
       uGrimeAmount: { value: opts.grimeAmount },
-      ...fogUniforms(opts.atmos),
     },
     transparent: true,
     depthWrite: false,
@@ -390,31 +368,21 @@ export function beamMaterial(opts: { color: THREE.Color; lightDir: THREE.Vector3
 }
 
 // --------------------------------------------------------------------------
-export const MAX_BEAMS = 32;
-
 const moteVertex = /* glsl */ `
   attribute vec3 aSeed;
   uniform vec3 uCam;
   uniform float uBox;
   uniform float uTime;
   uniform float uDpr;
-  uniform vec3 uA[${MAX_BEAMS}];
-  uniform vec3 uB[${MAX_BEAMS}];
-  uniform int uBeams;
-  uniform float uBeamWidth;
   varying float vAlpha;
   varying float vLit;
-  float segDist(vec3 p, vec3 a, vec3 b) { vec3 ab = b - a; float t = clamp(dot(p - a, ab) / dot(ab, ab), 0.0, 1.0); return length(a + ab * t - p); }
+  ${SUNVIS_GLSL}
   void main() {
     vec3 drift = vec3(sin(uTime * 0.13 + aSeed.x * 6.28), sin(uTime * 0.09 + aSeed.y * 6.28) * 0.6 + uTime * 0.02 * (aSeed.z - 0.3), cos(uTime * 0.11 + aSeed.z * 6.28)) * 0.6;
     vec3 p = position * uBox + drift;
     p = mod(p - uCam + uBox * 0.5, uBox) - uBox * 0.5 + uCam;
-    float lit = 0.0;
-    for (int i = 0; i < ${MAX_BEAMS}; i++) {
-      if (i >= uBeams) break;
-      float d = segDist(p, uA[i], uB[i]);
-      lit = max(lit, exp(-d * d / (uBeamWidth * uBeamWidth)));
-    }
+    // Dust only sparkles where the sun (moon) actually reaches.
+    float lit = smoothstep(0.35, 0.95, sunVisibility(p));
     vLit = lit;
     vec4 mv = modelViewMatrix * vec4(p, 1.0);
     float depth = -mv.z;
@@ -440,9 +408,7 @@ const moteFragment = /* glsl */ `
   }
 `;
 
-export function moteMaterial(opts: { color: THREE.Color; litColor: THREE.Color; base: number; beamWidth: number }) {
-  const A = Array.from({ length: MAX_BEAMS }, () => new THREE.Vector3(0, -1000, 0));
-  const B = Array.from({ length: MAX_BEAMS }, () => new THREE.Vector3(0, -1000, 0));
+export function moteMaterial(opts: { color: THREE.Color; litColor: THREE.Color; base: number; vis: ReturnType<typeof sunVisUniforms> }) {
   return new THREE.ShaderMaterial({
     vertexShader: moteVertex,
     fragmentShader: moteFragment,
@@ -451,13 +417,10 @@ export function moteMaterial(opts: { color: THREE.Color; litColor: THREE.Color; 
       uBox: { value: 9 },
       uTime: { value: 0 },
       uDpr: { value: 1 },
-      uA: { value: A },
-      uB: { value: B },
-      uBeams: { value: 0 },
-      uBeamWidth: { value: opts.beamWidth },
       uColor: { value: opts.color },
       uLitColor: { value: opts.litColor },
       uBase: { value: opts.base },
+      ...opts.vis,
     },
     transparent: true,
     depthWrite: false,
@@ -472,23 +435,31 @@ export interface LeafUniforms {
   uWind: { value: number };
   uLightView: { value: THREE.Vector3 };
   uTrans: { value: THREE.Color };
+  uTransBase: { value: number };
 }
 
 export function makeLeafUniforms(): LeafUniforms {
-  return { uTime: { value: 0 }, uWind: { value: 1 }, uLightView: { value: new THREE.Vector3(0, 1, 0) }, uTrans: { value: new THREE.Color(0, 0, 0) } };
+  return { uTime: { value: 0 }, uWind: { value: 1 }, uLightView: { value: new THREE.Vector3(0, 1, 0) }, uTrans: { value: new THREE.Color(0, 0, 0) }, uTransBase: { value: 0.06 } };
 }
 
-export function patchLeaf(m: THREE.MeshStandardMaterial, u: LeafUniforms, mode: "sway" | "flutter") {
+/** The sun's direct light, dimmed by the baked visibility grid at each fragment (shadows from the ironwork and plants). */
+const SHADOWED_LIGHTS = THREE.ShaderChunk.lights_fragment_begin.replace(
+  "getDirectionalLightInfo( directionalLight, directLight );",
+  "getDirectionalLightInfo( directionalLight, directLight );\n\t\tdirectLight.color *= gSunVis;",
+);
+
+export function patchLeaf(m: THREE.MeshStandardMaterial, u: LeafUniforms, mode: "sway" | "flutter", vis: ReturnType<typeof sunVisUniforms>) {
   // Offsets are applied in world space after projection: GLB positions are quantized, so local units are not meters.
   const amp = mode === "sway" ? "0.03" : "0.012";
   m.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, u);
+    Object.assign(shader.uniforms, u, vis);
     shader.vertexShader = shader.vertexShader
       .replace(
         "#include <common>",
         `#include <common>
         uniform float uTime;
         uniform float uWind;
+        varying vec3 vSunPos;
         float leafNoise(vec3 p) { return sin(p.x) * sin(p.y * 1.3 + 1.7) * sin(p.z * 0.9 + 0.4); }`,
       )
       .replace(
@@ -504,6 +475,7 @@ export function patchLeaf(m: THREE.MeshStandardMaterial, u: LeafUniforms, mode: 
           vec3 off = vec3(leafNoise(q), leafNoise(q.yzx + 3.1) * 0.4, leafNoise(q.zxy + 5.7)) * ${amp};
           off += vec3(sin(uTime * 2.3 + dot(wp0, vec3(9.1, 7.3, 8.7)))) * vec3(0.004, 0.002, 0.004);
           mvPosition.xyz += mat3(viewMatrix) * off * uWind;
+          vSunPos = wp0 + off * uWind;
           gl_Position = projectionMatrix * mvPosition;
         }`,
       );
@@ -512,19 +484,47 @@ export function patchLeaf(m: THREE.MeshStandardMaterial, u: LeafUniforms, mode: 
         "#include <common>",
         `#include <common>
         uniform vec3 uLightView;
-        uniform vec3 uTrans;`,
+        uniform vec3 uTrans;
+        uniform float uTransBase;
+        varying vec3 vSunPos;
+        ${SUNVIS_GLSL}`,
       )
+      .replace("#include <lights_fragment_begin>", `float gSunVis = sunVisibility(vSunPos);\n${SHADOWED_LIGHTS}`)
       .replace(
         "#include <opaque_fragment>",
         `{
+          // Light through the leaf: strongest looking into the sun, and only where the sun reaches.
           vec3 Vv = normalize(vViewPosition);
           float back = pow(max(dot(-Vv, uLightView), 0.0), 4.0);
-          outgoingLight += diffuseColor.rgb * uTrans * (0.25 + back * 2.2);
+          outgoingLight += diffuseColor.rgb * uTrans * (uTransBase + back * 2.2 * gSunVis);
         }
         #include <opaque_fragment>`,
       );
   };
   m.customProgramCacheKey = () => `leaf-${mode}`;
+}
+
+/** Any standard material: the sun's direct light (here mostly specular glints) respects the visibility grid. */
+export function withSunShadow<T extends THREE.MeshStandardMaterial>(m: T, vis: ReturnType<typeof sunVisUniforms>, key: string): T {
+  m.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, vis);
+    shader.vertexShader = shader.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vSunPos;").replace(
+      "#include <project_vertex>",
+      `#include <project_vertex>
+      {
+        vec4 sp = vec4(transformed, 1.0);
+        #ifdef USE_INSTANCING
+        sp = instanceMatrix * sp;
+        #endif
+        vSunPos = (modelMatrix * sp).xyz;
+      }`,
+    );
+    shader.fragmentShader = shader.fragmentShader
+      .replace("#include <common>", `#include <common>\nvarying vec3 vSunPos;\n${SUNVIS_GLSL}`)
+      .replace("#include <lights_fragment_begin>", `float gSunVis = sunVisibility(vSunPos);\n${SHADOWED_LIGHTS}`);
+  };
+  m.customProgramCacheKey = () => `sunshadow-${key}`;
+  return m;
 }
 
 // --------------------------------------------------------------------------

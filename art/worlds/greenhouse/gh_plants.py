@@ -29,6 +29,24 @@ SCANS = {
 }
 
 _src = {}
+# Scans that are heavier than their screen size deserves.
+DECIMATE = {"Lantern_01": 0.3}
+
+
+def decimate_mesh(me, ratio):
+    o = bpy.data.objects.new("_dec", me)
+    bpy.context.scene.collection.objects.link(o)
+    mod = o.modifiers.new("dec", "DECIMATE")
+    mod.ratio = ratio
+    dg = bpy.context.evaluated_depsgraph_get()
+    out = bpy.data.meshes.new_from_object(o.evaluated_get(dg))
+    bpy.data.objects.remove(o, do_unlink=True)
+    for m in me.materials:
+        if m is not None and m.name not in out.materials:
+            out.materials.append(m)
+    while len(out.uv_layers) > 1:
+        out.uv_layers.remove(out.uv_layers[-1])
+    return out
 
 
 def reset():
@@ -81,6 +99,10 @@ def load_scans():
             lo, hi = co.min(0), co.max(0)
             me.transform(Matrix.Translation(V((-(lo[0] + hi[0]) / 2, -(lo[1] + hi[1]) / 2, -lo[2]))))
             name = parts[0].replace("_LOD1", "")
+            if name in DECIMATE:
+                n0 = len(me.polygons)
+                me = decimate_mesh(me, DECIMATE[name])
+                log("decimated", name, n0, "->", len(me.polygons), "faces")
             me.name = name
             _src[name] = me
         for o in list(dst.objects):
@@ -304,7 +326,7 @@ def build_foliage(P: Parts, seed=11):
     for k in range(6):
         a = TAU * k / 6 + math.radians(9)
         hook = V((4.3 * math.cos(a), 4.3 * math.sin(a), 11.0))
-        rim = basket(P("iron", "wires"), P("masonry", "rot1"), hook, rng, chain=3.0, r=0.32)
+        rim = basket(P("iron", "baskets"), P("masonry", "rot1"), hook, rng, chain=3.0, r=0.32)
         P.spots["basket"].append(rim)
         for q in range(rng.randint(8, 11)):
             b = TAU * q / 10 + rng.uniform(-0.3, 0.3)
