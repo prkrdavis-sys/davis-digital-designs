@@ -159,24 +159,42 @@ CLOUDS = 4
 
 
 def cloud_mesh(k):
+    """Cartoon cumulus: a flat-bottomed row of small puffs under a crown of big
+    round lobes, with little cauliflower bumps between them."""
     rnd = random.Random(100 + k)
     mb = bpy.data.metaballs.new(f"cloud_{k}_mb")
-    mb.resolution = 0.07
-    mb.render_resolution = 0.07
+    mb.resolution = 0.05
+    mb.render_resolution = 0.05
+    mb.threshold = 0.6
     w = [3.2, 4.2, 2.6, 5.0][k]
-    n = [7, 9, 6, 11][k]
-    for i in range(n):
+    crown = [3, 4, 3, 5][k]
+
+    def ball(co, r, stiff=2.0):
         e = mb.elements.new()
-        t = i / max(1, n - 1)
-        x = (t - 0.5) * w
+        e.co = co
+        e.radius = r
+        e.stiffness = stiff
+
+    base = max(4, int(w / 0.5))
+    for i in range(base):
+        t = i / (base - 1)
+        ball(((t - 0.5) * w * 0.9, rnd.uniform(-0.2, 0.2), 0.0), 0.48 + 0.32 * math.sin(t * math.pi))
+    tops = []
+    for i in range(crown):
+        t = (i + 0.5) / crown + rnd.uniform(-0.06, 0.06)
         bump = math.sin(t * math.pi)
-        e.co = (x + rnd.uniform(-0.2, 0.2), rnd.uniform(-0.3, 0.3), bump * rnd.uniform(0.25, 0.7))
-        e.radius = 0.55 + bump * rnd.uniform(0.35, 0.75)
-    # Flat-ish base.
-    for i in range(3):
-        e = mb.elements.new()
-        e.co = ((i - 1) * w * 0.28, 0, -0.25)
-        e.radius = 0.8
+        r = 0.55 + bump * rnd.uniform(0.45, 0.75)
+        p = ((t - 0.5) * w * 0.82, rnd.uniform(-0.15, 0.15), 0.2 + r * 0.72)
+        ball(p, r, 2.6)
+        tops.append((p, r))
+    for (p, r), (q, s) in zip(tops, tops[1:]):
+        # Small puffs in the saddles between crown lobes.
+        m = ((p[0] + q[0]) / 2, (p[1] + q[1]) / 2 - 0.25, max(p[2], q[2]) - 0.05)
+        ball(m, min(r, s) * 0.62, 3.0)
+    for (p, r) in tops:
+        for _ in range(2):
+            a = rnd.uniform(0.35, 2.8)
+            ball((p[0] + math.cos(a) * r * 0.62, p[1] - r * 0.35, p[2] + math.sin(a) * r * 0.55), r * rnd.uniform(0.34, 0.46), 3.0)
     ob = bpy.data.objects.new(f"cloud_{k}_tmp", mb)
     bpy.context.scene.collection.objects.link(ob)
     dg = bpy.context.evaluated_depsgraph_get()
@@ -185,10 +203,12 @@ def cloud_mesh(k):
     o = bpy.data.objects.new(f"cloud_{k}", me)
     bpy.context.scene.collection.objects.link(o)
     # Flatten the underside.
+    zs = [v.co.z for v in o.data.vertices]
+    floor = min(zs) + (max(zs) - min(zs)) * 0.16
     for v in o.data.vertices:
-        if v.co.z < -0.35:
-            v.co.z = -0.35 + (v.co.z + 0.35) * 0.25
-    toy.relax(o, 3, 0.5)
+        if v.co.z < floor:
+            v.co.z = floor + (v.co.z - floor) * 0.2
+    toy.relax(o, 2, 0.4)
     geo.smooth(o, 180)
     toy.center(o)
     return o
@@ -196,17 +216,21 @@ def cloud_mesh(k):
 
 def cloud_material(variant):
     night = variant == "night"
-    m = mat.principled(f"cloud_{variant}", base=lin(PAL[variant]["cloud"]), rough=0.85, sheen=0.8, sheen_rough=0.6, subsurface=0.35, subsurface_scale=0.6, specular=0.2)
+    m = mat.principled(f"cloud_{variant}", base=lin(PAL[variant]["cloud"]), rough=0.85, sheen=0.4, sheen_rough=0.6, subsurface=0.2, subsurface_scale=0.5, specular=0.2)
     mat.bsdf_of(m).inputs["Subsurface Radius"].default_value = (1.0, 0.75, 0.85) if not night else (0.7, 0.75, 1.0)
     return m
 
 
 def cloud_lights(variant):
     if variant == "day":
-        scene.sun_light("sun", rot_deg=(38, 0, 35), strength=3.2, color=(1.0, 0.93, 0.88), angle_deg=6)
+        # Key from the upper right (not from the camera, or the lobes flatten out) + a warm back rim.
+        scene.sun_light("sun", rot_deg=(50, 0, 51), strength=3.4, color=(1.0, 0.95, 0.9), angle_deg=6)
+        scene.sun_light("rim", rot_deg=(60, 0, 157), strength=2.0, color=(1.0, 0.82, 0.9), angle_deg=10)
     else:
-        scene.sun_light("moon", rot_deg=(50, 0, -40), strength=0.5, color=(0.7, 0.75, 1.0), angle_deg=4)
-        scene.sun_light("dusk", rot_deg=(95, 0, 160), strength=1.2, color=(1.0, 0.5, 0.7), angle_deg=10)
+        # Cool moonlight on the crowns from the upper left, dusk pink on the bellies.
+        scene.sun_light("moon", rot_deg=(45, 0, -50), strength=2.6, color=(0.72, 0.76, 1.0), angle_deg=5)
+        scene.sun_light("dusk", rot_deg=(150, 0, 0), strength=2.2, color=(1.0, 0.45, 0.72), angle_deg=20)
+        scene.sun_light("rim", rot_deg=(60, 0, 157), strength=2.5, color=(1.0, 0.6, 0.85), angle_deg=10)
 
 
 def step_clouds():
@@ -219,7 +243,7 @@ def step_clouds():
         for k in range(CLOUDS):
             scene.reset()
             sc = scene.cycles(samples=args.samples or 64, bounces=6, transparent=True, res=(1024, 512))
-            scene.view("Standard", exposure=0.0)
+            scene.view("Khronos PBR Neutral", exposure=0.0 if variant == "day" else 0.3)
             stops = [(p, lin(h)) for p, h in PAL[variant]["sky"]]
             toy.gradient_world(stops, strength=0.9 if variant == "day" else 0.7)
             with bpy.data.libraries.load(str(SHAPES / "clouds.blend")) as (src, dst):
@@ -263,10 +287,38 @@ COLORS = ["pink", "blue", "butter", "lilac", "mint", "white"]
 GLYPH_FOR = {"pink": ("heart", "white"), "blue": ("star", "butter"), "butter": ("dots", "white"), "lilac": ("heart", "chrome"), "mint": ("dots", "white"), "white": ("star", "pink")}
 
 
+def rail_path(n=140):
+    """Camera positions along the rail (linear between keys is close enough for clearance)."""
+    keys = rail_keys()
+    out = []
+    for i in range(n + 1):
+        s = keys[-1]["s"] * i / n
+        k = max(j for j in range(len(keys)) if keys[j]["s"] <= s + 1e-9)
+        a, b = keys[k], keys[min(k + 1, len(keys) - 1)]
+        t = 0.0 if a is b else (s - a["s"]) / (b["s"] - a["s"])
+        out.append(Vector(a["pos"]).lerp(Vector(b["pos"]), t))
+    return out
+
+
+def clear_of_rail(pos, clearance):
+    """Nudge a bubble sideways until it's at least `clearance` from the camera path."""
+    pos = Vector(pos)
+    for p in rail_path():
+        d = pos - p
+        dist = d.length
+        if dist < clearance:
+            side = Vector((d.x, d.y, 0.0))
+            if side.length < 1e-3:
+                side = Vector((AXIS.x - p.x, AXIS.y - p.y, 0.0))
+            pos += side.normalized() * (clearance - dist)
+    return pos
+
+
 def layout():
     rnd = random.Random(7)
+    path = rail_path()
     bubbles = []
-    n = 26
+    n = 30
     for i in range(n):
         z = -3.5 + i * (23.0 / n) + rnd.uniform(-0.5, 0.5)
         ang = i * 2.39996 + rnd.uniform(-0.3, 0.3)  # golden-angle spiral around the axis
@@ -275,8 +327,10 @@ def layout():
         shape = SHAPE_KEYS[i % 3]
         color = COLORS[(i * 5 + 1) % len(COLORS)]
         sc = rnd.uniform(0.62, 1.15)
-        # Face roughly toward the orbit (the camera), with a playful tilt.
-        yaw = math.degrees(math.atan2(-(pos.x - AXIS.x), (pos.y - AXIS.y) + 14.0)) * 0.6 + rnd.uniform(-25, 25)
+        pos = clear_of_rail(pos, 4.6 + 1.6 * sc)
+        # Face (-Y local) the camera where it passes closest, with a playful tilt.
+        near = min(path, key=lambda p: (p - pos).length)
+        yaw = math.degrees(math.atan2(near.x - pos.x, -(near.y - pos.y))) + rnd.uniform(-22, 22)
         rot = (rnd.uniform(-10, 10), rnd.uniform(-14, 14), yaw)
         mirror = rnd.random() < 0.5
         glyph = None
@@ -320,8 +374,11 @@ def bubble_material(variant, color):
         return toy.chrome(f"chrome_{variant}", rough=0.05)
     col = c(variant, color)
     if night:
-        # Lit from within: the body glows, strongest face-on, softer at the silhouette.
-        return toy.vinyl(f"vinyl_{color}_{variant}", col, rough=0.28, night_rim=tuple(min(1.0, x * 1.3 + 0.1) for x in col), rim_strength=1.2, inner=col, inner_strength=1.6)
+        # Lit from within: a saturated glow face-on (squared color keeps AgX from bleaching
+        # the pastels) and a pale neon halo at the silhouette.
+        glow = tuple(x**1.6 for x in col)
+        rim = tuple(min(1.0, x * 1.2 + 0.15) for x in col)
+        return toy.vinyl(f"vinyl_{color}_{variant}", col, rough=0.24, night_rim=rim, rim_strength=2.4, inner=glow, inner_strength=0.75)
     return toy.vinyl(f"vinyl_{color}_{variant}", col, rough=0.28)
 
 
@@ -479,7 +536,9 @@ def step_export():
         "clouds": [{"k": cd["k"], "pos": to_three(cd["pos"]), "scale": round(cd["scale"], 3), "size": card_size.get(cd["k"], [4, 2])} for cd in clouds],
     }
     (PUB / "hi" / "layout.json").write_text(json.dumps(data))
-    cli.log("layout written", len(data["bubbles"]), "bubbles", len(data["clouds"]), "clouds")
+    path = rail_path()
+    near = min(min((Vector(b["pos"]) - p).length for p in path) for b in bubbles)
+    cli.log("layout written", len(data["bubbles"]), "bubbles", len(data["clouds"]), "clouds; closest bubble to the rail", round(near, 2), "m")
 
 
 _fronts = {}

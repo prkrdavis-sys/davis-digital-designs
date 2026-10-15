@@ -50,8 +50,39 @@ def chaikin(pts, iterations=3):
 
 
 def rounded(pts, radius, iterations=3):
-    """Round every corner by roughly `radius`."""
+    """Round every corner of a sparse polygon by roughly `radius`."""
     return chaikin(resample(pts, radius), iterations)
+
+
+def even(pts, step):
+    """Resample a closed polyline at even arc-length spacing."""
+    ring = [Vector(p) for p in pts] + [Vector(pts[0])]
+    seg = [(b - a).length for a, b in zip(ring, ring[1:])]
+    total = sum(seg)
+    n = max(8, int(total / step))
+    out, i, acc = [], 0, 0.0
+    for k in range(n):
+        d = total * k / n
+        while i < len(seg) - 1 and acc + seg[i] < d:
+            acc += seg[i]
+            i += 1
+        t = (d - acc) / seg[i] if seg[i] > 1e-9 else 0.0
+        out.append(tuple(ring[i].lerp(ring[i + 1], t)))
+    return out
+
+
+def soften(pts, radius, iterations=4):
+    """Round corners and fill cusps of a dense outline (box filter over ~radius of arc).
+
+    Curve bevels miter at sharp corners, so any corner tighter than the bevel
+    depth grows a horn; soften by at least the bevel depth first.
+    """
+    step = radius / 4
+    p = [Vector(q) for q in even(pts, step)]
+    n = len(p)
+    for _ in range(iterations):
+        p = [sum((p[(i + j) % n] for j in range(-4, 5)), Vector((0.0, 0.0))) / 9 for i in range(n)]
+    return [tuple(q) for q in p]
 
 
 def star_outline(points=5, r_out=1.0, r_in=0.5, sharp=1.6, samples=360):
@@ -124,7 +155,7 @@ def heart_outline(size=1.0, samples=200):
         x = 16 * math.sin(t) ** 3
         y = 13 * math.cos(t) - 5 * math.cos(2 * t) - 2 * math.cos(3 * t) - math.cos(4 * t)
         out.append((x / 17 * size, y / 17 * size))
-    return chaikin(out, 1)
+    return soften(out, 0.24 * size)
 
 
 def speech_outline(a=1.0, b=0.72, p=3.2, tail=(-0.55, -1.0), tail_at=-0.62, tail_w=0.34, samples=220):
@@ -189,9 +220,49 @@ def remesh(obj, voxel):
 def puff(obj, voxel, pressure=5.0, frames=30, stiffness=10.0, shrink=0.0):
     """Even skin + cloth-pressure inflation (ddd.inflate)."""
     remesh(obj, voxel)
+    me = obj.data
+    lo = Vector([min(v.co[i] for v in me.vertices) for i in range(3)])
+    hi = Vector([max(v.co[i] for v in me.vertices) for i in range(3)])
     inflate.inflate(obj, pressure=pressure, frames=frames, stiffness=stiffness, shrink=shrink)
+    margin = max(hi - lo) * 0.5
+    despike(obj, lo - Vector((margin,) * 3), hi + Vector((margin,) * 3))
     geo.smooth(obj, 180)
     return obj
+
+
+def despike(obj, lo, hi, iterations=64, stretch=4.0):
+    """Pull back vertices the cloth sim flung out as needles.
+
+    Pressure sims can blow up at sharp inward cusps (the top of a heart),
+    shooting a needle of vertices out. Needle vertices sit outside the box
+    [lo, hi] or have edges `stretch` times longer than the median edge; each
+    is replaced by the average of its sane neighbours, working inward from
+    the needle's base.
+    """
+    me = obj.data
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    lens = sorted(e.calc_length() for e in bm.edges)
+    limit = lens[len(lens) // 2] * stretch if lens else float("inf")
+    bad = {v for v in bm.verts if any(v.co[k] < lo[k] or v.co[k] > hi[k] for k in range(3)) or any(e.calc_length() > limit for e in v.link_edges)}
+    count = len(bad)
+    for _ in range(iterations):
+        if not bad:
+            break
+        fixed = []
+        for v in bad:
+            nb = [e.other_vert(v) for e in v.link_edges if e.other_vert(v) not in bad]
+            if nb:
+                fixed.append((v, sum((n.co for n in nb), Vector()) / len(nb)))
+        for v, co in fixed:
+            v.co = co
+            bad.discard(v)
+    bm.to_mesh(me)
+    bm.free()
+    me.update()
+    if count:
+        relax(obj, 3, 0.5)
+    return count
 
 
 def relax(obj, iterations=4, factor=0.5):
