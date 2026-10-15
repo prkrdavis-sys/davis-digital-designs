@@ -289,32 +289,40 @@ FLIGHT = [
     _key(0.30, -1, -136, -1072, 7.0, (-1, -142, -960, 6.0), 47),
     _key(0.45, -1, -140, -980, 7.0, (-1, -120, -840, 9.0), 47),
     _key(0.62, -1, -124, -862, 6.5, (-1, -114, -800, 10.0), 46),
-    _key(0.75, -1, -118, -790, 7.0, (-1, -20, -680, 20.0), 48),
-    # climb the stoss slope, over the brink into corridor B
-    _key(0.88, -1, -60, -720, 8.0, (-1, 40, -620, 8.0), 50),
-    _key(1.00, -1, 0, -670, 10.0, (0, -150, -540, 3.0), 52),
-    _key(1.10, -1, 50, -620, 9.0, (0, -120, -460, 8.0), 50),
+    _key(0.74, -1, -110, -792, 7.0, (-1, -30, -710, 12.0), 48),
+    # climb the stoss slope and crest the brink: the reveal of corridor B
+    _key(0.80, -1, -70, -765, 7.0, (-1, 10, -705, 5.0), 50),
+    _key(0.86, -1, 0, -730, 6.0, (0, -180, -560, 0.0), 52),
+    # drop down the slip face, cross the shadowed floor low and settle at the foot
+    # of the lit slope, looking north along the light/shadow line
+    _key(0.91, -1, 60, -702, 5.0, (0, -180, -520, 4.0), 50),
+    _key(0.955, -1, 150, -674, 4.5, (0, -170, -500, 6.0), 49),
+    _key(1.00, 0, -190, -640, 4.0, (0, -150, -380, 8.0), 47),
+    _key(1.10, 0, -186, -585, 5.0, (0, -130, -420, 12.0), 47),
     # work: skim three slabs
-    _key(1.25, 0, -170, -530, 7.0, (0, -125, -410, 12.0), 48),
+    _key(1.25, 0, -175, -515, 6.5, (0, -125, -410, 12.0), 47),
     _key(1.38, 0, -128, -440, 6.5, (0, -150, -300, 6.0), 47),
     _key(1.52, 0, -142, -330, 7.0, (0, -128, -180, 10.0), 47),
     _key(1.66, 0, -140, -195, 6.5, (0, -115, -40, 8.0), 47),
     _key(1.80, 0, -122, -60, 7.0, (0, -110, 40, 10.0), 47),
     _key(1.90, 0, -120, 15, 6.5, (0, -20, 150, 20.0), 48),
-    # over ridge 0 into corridor C
-    _key(2.02, 0, -60, 110, 8.0, (0, 40, 220, 8.0), 50),
-    _key(2.12, 0, 0, 180, 10.0, (1, -130, 330, 4.0), 52),
-    _key(2.25, 0, 60, 250, 9.0, (_ROW_X - 8, 360.0, 10.0), 50),
+    # over ridge 0 (the row appears across corridor C), down and along the foot of ridge 1
+    _key(1.96, 0, -70, 70, 7.0, (0, 10, 150, 5.0), 50),
+    _key(2.02, 0, 0, 112, 6.0, (1, -150, 300, 2.0), 52),
+    _key(2.07, 0, 60, 145, 5.0, (1, -160, 320, 5.0), 50),
+    _key(2.13, 0, 150, 185, 4.5, (1, -150, 330, 8.0), 49),
+    _key(2.20, 1, -200, 238, 4.5, (_ROW_X, 380.0, 10.0), 47),
+    (2.30, _ROW_X - 38, 272.0, 6.0, (_ROW_X, 390.0, 10.0), 46),
     # faq: glide along the row
-    (2.40, _ROW_X - 24, 310.0, 7.0, (_ROW_X, 420.0, 10.0), 46),
+    (2.40, _ROW_X - 24, 312.0, 7.0, (_ROW_X, 420.0, 10.0), 46),
     (2.60, _ROW_X - 22, 390.0, 7.0, (_ROW_X, 480.0, 10.0), 44),
     (2.80, _ROW_X - 21, 460.0, 7.0, (_ROW_X, 540.0, 10.0), 44),
     (3.00, _ROW_X - 20, 530.0, 7.5, (_ROW_X, 610.0, 11.0), 44),
-    # outro: climb and turn toward the sunset
-    (3.20, _ROW_X - 30, 600.0, 18.0, (_ROW_X - 80, 720.0, 12.0), 46),
-    (3.45, _ROW_X - 50, 660.0, 50.0, _far(_ROW_X - 50, 660.0, -80, 1200, 40.0), 48),
-    (3.75, _ROW_X - 80, 700.0, 95.0, _far(_ROW_X - 80, 700.0, -106, 3000, 150.0), 46),
-    (4.20, _ROW_X - 110, 720.0, 135.0, _far(_ROW_X - 110, 720.0, -112, 6000, 300.0), 42),
+    # outro: climb out of the row and turn south-west, the setting sun in the right third
+    (3.20, _ROW_X - 30, 600.0, 18.0, (_ROW_X - 90, 700.0, 10.0), 46),
+    (3.45, _ROW_X - 50, 655.0, 48.0, _far(_ROW_X - 50, 655.0, -110, 1200, -57.0), 48),
+    (3.75, _ROW_X - 80, 695.0, 90.0, _far(_ROW_X - 80, 695.0, -118, 3000, -146.0), 46),
+    (4.20, _ROW_X - 110, 720.0, 130.0, _far(_ROW_X - 110, 720.0, -122, 6000, -290.0), 42),
 ]
 
 
@@ -447,6 +455,69 @@ PROPS = [
 ]
 
 
+def _bilinear(G, u, v):
+    n = G.shape[0]
+    u = np.clip(u, 0, n - 1.001)
+    v = np.clip(v, 0, n - 1.001)
+    j, i = u.astype(np.int32), v.astype(np.int32)
+    fu, fv = u - j, v - i
+    a = G[i, j] * (1 - fu) + G[i, j + 1] * fu
+    b = G[i + 1, j] * (1 - fu) + G[i + 1, j + 1] * fu
+    return a * (1 - fv) + b * fv
+
+
+def with_slabs(H, x0=CORE_X0, y0=CORE_Y0, size=CORE_SIZE):
+    """Height grid (texel centers, row = y) with every slab stamped in as a solid block."""
+    n = H.shape[0]
+    px = size / n
+    G = H.copy()
+    for m in monolith_placements():
+        nrm, tan = monolith_frame(m)
+        c = np.array(m["p"])
+        r = int(math.ceil((m["w"] / 2 + 2) / px))
+        ci, cj = int((c[1] - y0) / px), int((c[0] - x0) / px)
+        i0, i1, j0, j1 = max(0, ci - r), min(n, ci + r + 1), max(0, cj - r), min(n, cj + r + 1)
+        J, I = np.meshgrid(np.arange(j0, j1), np.arange(i0, i1))
+        dx = x0 + (J + 0.5) * px - c[0]
+        dy = y0 + (I + 0.5) * px - c[1]
+        a = dx * nrm[0] + dy * nrm[1]
+        b = dx * tan[0] + dy * tan[1]
+        inside = (np.abs(a) <= m["thickness"] / 2 + px * 0.5) & (np.abs(b) <= m["w"] / 2)
+        top = m["ground"] + m["h"]
+        G[i0:i1, j0:j1] = np.where(inside, np.maximum(G[i0:i1, j0:j1], top), G[i0:i1, j0:j1])
+    return G
+
+
+def sun_visibility(H, size=CORE_SIZE, max_dist=520.0, chunk=256):
+    """Soft sun visibility (0..1) for a height grid by marching toward the sun.
+
+    The penumbra widens with the occluder distance like a 0.55 degree sun disc.
+    """
+    n = H.shape[0]
+    px = size / n
+    L = sun_dir()
+    hl = math.hypot(L[0], L[1])
+    du, dv = L[0] / hl / px, L[1] / hl / px
+    rise = L[2] / hl
+    ts = [px * 0.75]
+    while ts[-1] < max_dist:
+        ts.append(ts[-1] + px * 0.75 * (1.0 + ts[-1] / 60.0))
+    vis = np.ones_like(H, dtype=np.float32)
+    jj = np.arange(n, dtype=np.float32)
+    for i0 in range(0, n, chunk):
+        rows = np.arange(i0, min(n, i0 + chunk), dtype=np.float32)
+        J, I = np.meshgrid(jj, rows)
+        h0 = H[i0 : i0 + chunk] + 0.05
+        v = np.ones_like(h0, dtype=np.float32)
+        for t in ts:
+            hq = _bilinear(H, J + du * t, I + dv * t)
+            margin = h0 + t * rise - hq
+            pen = t * 0.0096 + 0.15
+            v = np.minimum(v, np.clip(0.5 + margin / pen, 0, 1))
+        vis[i0 : i0 + chunk] = v
+    return vis
+
+
 def monolith_placements():
     out = []
     for m in MONOLITHS:
@@ -472,7 +543,7 @@ def export_meta(path, extra=None):
     meta = {
         "ridges": ridge_lines(),
         "core": {"x0": CORE_X0, "y0": CORE_Y0, "size": CORE_SIZE},
-        "sun": {"azimuth": SUN_AZIMUTH, "elevation": SUN_ELEVATION, "dir": [round(float(v), 5) for v in sun_dir()]},
+        "sun": {"azimuth": SUN_AZIMUTH, "elevation": SUN_ELEVATION, "skyElevation": SKY_ELEVATION, "dir": [round(float(v), 5) for v in sun_dir()]},
         "monoliths": monolith_placements(),
         "footprints": footprints(),
         "props": [{"kind": k, "p": [x, y], "yaw": yaw, "scale": sc, "sink": sk} for k, x, y, yaw, sc, sk in PROPS],

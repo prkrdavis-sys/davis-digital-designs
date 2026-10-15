@@ -6,7 +6,8 @@ Steps (run with --steps a,b,...):
   sky        night sky equirect (Milky Way, stars, moon) for Cycles and the runtime
   monoliths  slabs with bezels, bands and panel planes (monoliths.glb)
   props      bleached quiver trunks and half-buried boulders (props.glb)
-  bake       Cycles: sun visibility + diffuse irradiance per variant -> terrain light maps
+  shadow     analytic sun visibility (slabs stamped in) packed with the 4K normals -> terrain-data.png
+  bake       Cycles diffuse irradiance per variant -> terrain light maps
   rail       camera flight -> rails.json
   preview    quick Cycles still at --s
   layers     Low Resources depth layers + posters for every tag (day/night)
@@ -41,7 +42,8 @@ CACHE = cli.CACHE
 def extra_args(p):
     p.add_argument("--s", default="0.3", help="chapter time(s) for preview, comma separated")
     p.add_argument("--tags", default="")
-    p.add_argument("--bake-size", type=int, default=4096)
+    p.add_argument("--bake-size", type=int, default=2048, help="irradiance maps")
+    p.add_argument("--shadow-size", type=int, default=4096, help="sun visibility, packed with the normals")
 
 
 args = cli.parse([extra_args])
@@ -415,6 +417,7 @@ def place_props():
 
 def step_props():
     scene.reset()
+    _prop_cache.clear()
     objs = place_props()
     export.glb(OUT / "props.glb", objs)
 
@@ -445,13 +448,11 @@ def fogify(m, variant):
     cam.operation = "MULTIPLY"
     nt.links.new(inv.outputs[0], cam.inputs[0])
     nt.links.new(lp.outputs["Is Camera Ray"], cam.inputs[1])
-    # haze color: the sky map sampled at the horizon in the view direction
-    neg = nt.nodes.new("ShaderNodeVectorMath")
-    neg.operation = "SCALE"
-    neg.inputs["Scale"].default_value = -1.0
-    nt.links.new(geom.outputs["Incoming"], neg.inputs[0])
+    # haze color: the sky map sampled at the horizon in the view direction. The view
+    # direction is -Incoming; the sky lookup is turned 180 degrees about Z (see sky_world),
+    # which flips x and y back, so Incoming's x, y are used as they are.
     sep = nt.nodes.new("ShaderNodeSeparateXYZ")
-    nt.links.new(neg.outputs[0], sep.inputs[0])
+    nt.links.new(geom.outputs["Incoming"], sep.inputs[0])
     comb = nt.nodes.new("ShaderNodeCombineXYZ")
     nt.links.new(sep.outputs["X"], comb.inputs["X"])
     nt.links.new(sep.outputs["Y"], comb.inputs["Y"])
@@ -550,13 +551,20 @@ def sky_world(variant):
     nt = w.node_tree
     nt.nodes.clear()
     L = LOOK[variant]
+    geom = nt.nodes.new("ShaderNodeTexCoord")
     env = nt.nodes.new("ShaderNodeTexEnvironment")
     env.image = bpy.data.images.load(str(OUT / f"sky_{variant}.exr"), check_existing=True)
+    # sky.py writes u = atan2(y, -x) / 2pi + 0.5 (as the runtime reads it); Cycles' equirect
+    # lookup is that map turned 180 degrees about Z, so turn the lookup back.
+    rot = nt.nodes.new("ShaderNodeMapping")
+    rot.vector_type = "VECTOR"
+    rot.inputs["Rotation"].default_value[2] = math.pi
+    nt.links.new(geom.outputs["Generated"], rot.inputs["Vector"])
+    nt.links.new(rot.outputs["Vector"], env.inputs["Vector"])
     bg = nt.nodes.new("ShaderNodeBackground")
     bg.inputs["Strength"].default_value = L["sky_strength"]
     nt.links.new(env.outputs["Color"], bg.inputs["Color"])
     # disc: smoothstep on the angle to the light
-    geom = nt.nodes.new("ShaderNodeTexCoord")
     dot = nt.nodes.new("ShaderNodeVectorMath")
     dot.operation = "DOT_PRODUCT"
     el = dm.SKY_ELEVATION if variant == "day" else dm.SUN_ELEVATION
@@ -569,8 +577,8 @@ def sky_world(variant):
     ramp.interpolation_type = "SMOOTHSTEP"
     nt.links.new(dot.outputs["Value"], ramp.inputs["Value"])
     disc = nt.nodes.new("ShaderNodeEmission")
-    disc.inputs["Color"].default_value = (*(lin("#fff1d6") if variant == "day" else lin("#f4f1ea")), 1)
-    disc.inputs["Strength"].default_value = 60.0 if variant == "day" else 18.0
+    disc.inputs["Color"].default_value = (*(lin("#ffc987") if variant == "day" else lin("#f4f1ea")), 1)
+    disc.inputs["Strength"].default_value = 12.0 if variant == "day" else 18.0
     add = nt.nodes.new("ShaderNodeAddShader")
     nt.links.new(bg.outputs[0], add.inputs[0])
     mixd = nt.nodes.new("ShaderNodeMixShader")
@@ -601,6 +609,7 @@ def sun_lamp(variant):
 def stage(variant, terrain_mat=True):
     """Full scene for Cycles: terrain, skirt, slabs, props, world and light."""
     scene.reset()
+    _prop_cache.clear()
     sc = scene.cycles(samples=args.samples or (24 if args.preview else 64), bounces=4, res=(1920, 1200))
     sc.cycles.diffuse_bounces = 3
     scene.view("AgX", look="AgX - Medium High Contrast" if variant == "day" else "AgX - Base Contrast")
@@ -708,19 +717,26 @@ def blur(a, sigma=0.9):
     return out
 
 
+def step_shadow():
+    """Sun visibility from the analytic heights with the slabs stamped in, packed with the normals."""
+    ssize = args.shadow_size
+    H = np.load(OUT / "h4.npy").astype(np.float32)
+    n = np.load(OUT / "n4.npy").astype(np.float32)
+    if H.shape[0] != ssize:
+        idx = (np.arange(ssize) * H.shape[0] / ssize).astype(int)
+        H, n = H[idx][:, idx], n[idx][:, idx]
+    shadow = dm.sun_visibility(dm.with_slabs(H))
+    cli.log("sun visibility", shadow.shape, "lit", round(float(shadow.mean()), 3))
+    packed = np.stack([n[..., 0] * 0.5 + 0.5, n[..., 1] * 0.5 + 0.5, shadow], -1)
+    save_png(packed.astype(np.float32), OUT / "terrain-data.png")
+
+
 def step_bake():
     size = args.bake_size
-    data = {}
-    shadow = None
+    mfile = OUT / "dunes_meta.json"
     for variant in args.variants:
         sc, terrain, far, slabs, props = stage(variant)
         sc.cycles.use_denoising = False
-        if shadow is None:
-            img = bake_image("shadow", size)
-            attach_target(terrain, img)
-            run_bake(terrain, "SHADOW", args.samples or (8 if args.preview else 24))
-            shadow = blur(pixels(img)[..., 0], 0.7)
-            bpy.data.images.remove(img)
         # Lighting only (no albedo): the runtime multiplies its own detailed sand color back in.
         img = bake_image(f"irr_{variant}", size)
         attach_target(terrain, img)
@@ -730,18 +746,11 @@ def step_bake():
         scale = float(np.percentile(irr.max(-1), 99.7))
         enc = np.clip(irr / scale, 0, 1) ** (1 / 2.2)
         save_png(enc.astype(np.float32), OUT / f"light-{variant}.png")
-        data[variant] = {"scale": round(scale, 5)}
-        cli.log("irradiance", variant, "scale", round(scale, 4))
-    n = np.load(OUT / "n4.npy").astype(np.float32)
-    if n.shape[0] != size:
-        idx = (np.arange(size) * n.shape[0] / size).astype(int)
-        n = n[idx][:, idx]
-    packed = np.stack([n[..., 0] * 0.5 + 0.5, n[..., 1] * 0.5 + 0.5, np.clip(shadow, 0, 1)], -1)
-    save_png(packed.astype(np.float32), OUT / "terrain-data.png")
-    mfile = OUT / "dunes_meta.json"
-    mm = json.loads(mfile.read_text())
-    mm.setdefault("light", {}).update(data)
-    mfile.write_text(json.dumps(mm, separators=(",", ":")))
+        # The map and its scale must stay paired, so record each variant as soon as it is saved.
+        mm = json.loads(mfile.read_text())
+        mm.setdefault("light", {})[variant] = {"scale": round(scale, 5)}
+        mfile.write_text(json.dumps(mm, separators=(",", ":")))
+        cli.log("irradiance", variant, "scale", round(scale, 5))
 
 
 # --------------------------------------------------------------------------
@@ -770,7 +779,7 @@ def step_rail():
 
 # --------------------------------------------------------------------------
 # Stills
-TAGS = [0.0, 0.4, 0.95, 1.4, 1.7, 2.12, 2.55, 2.95, 3.5, 4.1]
+TAGS = [0.0, 0.62, 1.0, 1.3, 1.6, 2.2, 2.55, 2.9, 3.5, 4.05]
 
 
 def setup_cam_at(s):
@@ -803,20 +812,29 @@ def step_layers():
 
             near = [o for o in slabs + props if dist(o) < 300]
             ds = sorted(dist(o) for o in near)
-            depth_mid = max(6.0, float(np.median(ds))) if ds else 30.0
             back = [terrain, far] + [o for o in slabs + props if o not in near]
-            render.layers(cam, s, [("back", back), ("mid", near)], OUT / "layers", f"{variant}-s{int(round(s * 100)):03d}", samples=sc.cycles.samples, depths={"back": 140.0, "mid": depth_mid})
+            bands = [("back", back)]
+            depths = {"back": 140.0}
+            if near:
+                bands.append(("mid", near))
+                depths["mid"] = max(6.0, float(np.median(ds)))
+            render.layers(cam, s, bands, OUT / "layers", f"{variant}-s{int(round(s * 100)):03d}", samples=sc.cycles.samples, depths=depths)
 
 
 def step_pano():
-    """360 from just above the crest of the ridge east of the row, at sunset."""
-    x = dm.cx(0, 2.0, 300.0)
-    z = float(dm.height(np.array(x), np.array(300.0))) + 2.2
+    """360 from the crest of ridge 0 at sunset, centred on the row of slabs across corridor C.
+
+    The sun sets behind the viewer, so the row's panels face the centre of the panorama.
+    """
+    x, y = dm.cx(0, 2.0, 300.0), 300.0
+    z = float(dm.height(np.array(x), np.array(y))) + 2.2
+    row = np.mean([m["p"] for m in dm.MONOLITHS if m["id"] in ("m6", "m7", "m8", "m9", "m10")], axis=0)
+    yaw = math.degrees(math.atan2(row[1] - y, row[0] - x))
     for variant in args.variants:
         sc, terrain, far, slabs, props = stage(variant)
         png = OUT / f"pano-{variant}.png"
-        render.panorama(png, (x, 300.0, z), res=(4096, 2048), samples=args.samples or 64, look_yaw_deg=0)
-        cli.log("pano", variant, png)
+        render.panorama(png, (x, y, z), res=(4096, 2048), samples=args.samples or 64, look_yaw_deg=yaw)
+        cli.log("pano", variant, png, "yaw", round(yaw, 1))
 
 
 def step_mini():
@@ -865,12 +883,23 @@ def step_mini():
     slab = geo.obj_from_bmesh("mini_slab", bm)
     geo.smooth(slab, 35)
     mat.assign(slab, mat.principled("mini_glass", base=(0.01, 0.01, 0.012), rough=0.05, coat=1.0))
-    panel = geo.primitive("grid", "mini_panel", x=1, y=1, size=1.0)
-    panel.data.transform(Matrix.Scale(0.23, 4, (1, 0, 0)) @ Matrix.Scale(0.41, 4, (0, 1, 0)))
-    panel.rotation_euler = (math.radians(90), 0, math.radians(90))
-    panel.location = (0.0355, 0, 0.62)
-    geo.set_origin_world(panel)
-    mat.assign(panel, mat.emission("mini_panel", lin("#ffb870"), 3.0))
+    # The panel shows a real template card (panels.mjs), glowing softly.
+    bm = bmesh.new()
+    uvl = bm.loops.layers.uv.new("UVMap")
+    corners = [(-0.115, 0.415, 0, 0), (0.115, 0.415, 1, 0), (0.115, 0.825, 1, 1), (-0.115, 0.825, 0, 1)]
+    f = bm.faces.new([bm.verts.new((0.0362, y, z)) for y, z, _, _ in corners])
+    for loop, (_, _, u, v) in zip(f.loops, corners):
+        loop[uvl].uv = (u, v)
+    panel = geo.obj_from_bmesh("mini_panel", bm)
+    card = bpy.data.images.load(str(OUT / "panels" / "panel-2.png"))
+    card.scale(288, 512)
+    card.filepath_raw = str(OUT / "mini-card.png")
+    card.file_format = "PNG"
+    card.save()
+    pm = mat.principled("mini_panel", base=(0.02, 0.02, 0.02), rough=0.08, coat=1.0, emission_strength=1.6)
+    t = mat.image_node(pm, OUT / "mini-card.png", "sRGB")
+    pm.node_tree.links.new(t.outputs["Color"], mat.bsdf_of(pm).inputs["Emission Color"])
+    mat.assign(panel, pm)
     ring = ring_mesh("mini_bezel", [(y, z + 0.62) for y, z in rounded_rect(0.25, 0.43, 0.02)], [(y, z + 0.62) for y, z in rounded_rect(0.232, 0.412, 0.01)], 0.006, 0.035)
     mat.assign(ring, mat.principled("mini_gold", base=(1.0, 0.74, 0.42), metal=1.0, rough=0.2))
     for o in (slab, panel, ring):
@@ -888,6 +917,7 @@ STEPS = {
     "sky": step_sky,
     "monoliths": step_monoliths,
     "props": step_props,
+    "shadow": step_shadow,
     "bake": step_bake,
     "rail": step_rail,
     "preview": step_preview,

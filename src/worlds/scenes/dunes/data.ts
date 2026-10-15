@@ -3,7 +3,7 @@ import * as THREE from "three";
 /** Layout baked by art/worlds/dunes (Blender axes, meters; convert with `b2t`). */
 export interface DunesMeta {
   core: { x0: number; y0: number; size: number };
-  sun: { azimuth: number; elevation: number; dir: [number, number, number] };
+  sun: { azimuth: number; elevation: number; dir: [number, number, number]; skyElevation?: number };
   monoliths: {
     id: string;
     p: [number, number];
@@ -85,10 +85,12 @@ export function heightAt(data: DunesData, x: number, z: number): number {
   return a + (b - a) * fv;
 }
 
-/** The field as a float texture for shaders (R = height in meters). */
+/** The field as a half-float texture for shaders (R = height in meters, row 0 = south). */
 export function fieldTexture(data: DunesData): THREE.DataTexture {
   const n = data.meta.field.res;
-  const tex = new THREE.DataTexture(data.field, n, n, THREE.RedFormat, THREE.FloatType);
+  const half = new Uint16Array(data.field.length);
+  for (let i = 0; i < half.length; i++) half[i] = THREE.DataUtils.toHalfFloat(data.field[i]);
+  const tex = new THREE.DataTexture(half, n, n, THREE.RedFormat, THREE.HalfFloatType);
   tex.magFilter = THREE.LinearFilter;
   tex.minFilter = THREE.LinearFilter;
   tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
@@ -100,4 +102,12 @@ export function fieldTexture(data: DunesData): THREE.DataTexture {
 export function lightDir(data: DunesData): THREE.Vector3 {
   const d = data.meta.sun.dir;
   return new THREE.Vector3(d[0], d[2], -d[1]).normalize();
+}
+
+/** Where the disc is drawn: the painted day sky keeps its sun a little lower than the light. */
+export function discDir(data: DunesData, night: boolean): THREE.Vector3 {
+  const { azimuth, elevation, skyElevation } = data.meta.sun;
+  const az = THREE.MathUtils.degToRad(azimuth);
+  const el = THREE.MathUtils.degToRad(night ? elevation : (skyElevation ?? 3.5));
+  return b2t(Math.cos(el) * Math.sin(az), Math.cos(el) * Math.cos(az), Math.sin(el)).normalize();
 }
