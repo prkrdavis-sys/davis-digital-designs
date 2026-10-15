@@ -38,6 +38,7 @@ const S = {
   sand: { sprite: "grain", max: 320, rate: 18, perPx: 0.6, life: [0.8, 1.8], size: [2, 4.5], speed: [10, 40], inherit: -0.05, gravity: [95, 70], drag: 0.4, spread: 4, colors: ["#e0a94a", "#c98a2f", "#f2c46b", "#b8741f"], burst: { count: 60, speed: [60, 250] } } as EmitterSpec,
   flags: { sprite: "flag", max: 40, life: [0.9, 1.6], size: [12, 18], sizeCurve: "flat", colors: ["#2f6fe0", "#f3f3f3", "#e03a3a", "#2fa35a", "#f2c14e"], gravity: [30, 90], drag: 1, spin: [-3, 3], burst: { count: 14, speed: [80, 220] } } as EmitterSpec,
   confetti: { sprite: "paper", max: 40, life: [0.9, 1.6], size: [6, 10], sizeCurve: "flat", colors: ["#f2c8a6", "#ffab87", "#b9a4ff", "#9fb6e6"], nightColors: ["#fff4df", "#ffc3a8", "#d3c4ff", "#ffffff"], gravity: [0, 240], drag: 1.2, spin: [-8, 8], burst: { count: 18, speed: [100, 260] } } as EmitterSpec,
+  prism: { sprite: "sparkle", max: 28, perPx: 0.05, life: [0.3, 0.65], size: [3, 7], speed: [8, 28], colors: ["#d5e6f5", "#f4e9ff", "#fff6dc"], nightColors: ["#ffffff", "#d7e6ff", "#ffe9c4"], additive: "night", drag: 4, twinkle: 0.8 } as EmitterSpec,
 } as const;
 
 const R = {
@@ -182,5 +183,14 @@ export const CURSOR_THEMES: Record<SceneId, CursorTheme> = {
       </>
     ),
     label: { background: "#fff8ea", color: "#3b2f2a", border: "1px dashed #c9b79c", borderRadius: 4 },
+  },
+  monolith: {
+    Parts: () => (
+      <>
+        <Particles spec={S.prism} />
+        <SpriteGlyph kind="bead" size={7} color="#d7e4f2" nightColor="#f4fbff" />
+      </>
+    ),
+    label: pill("rgba(244,248,251,0.86)", "#1c2830", "1px solid rgba(255,255,255,0.7)", { backdropFilter: "blur(10px)" }),
   },
 };

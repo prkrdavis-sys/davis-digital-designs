@@ -21,6 +21,7 @@ const loaders: Record<SceneId, () => Promise<SceneModule>> = {
   dunes: () => import("@/worlds/scenes/dunes"),
   everest: () => import("@/worlds/scenes/everest"),
   planes: () => import("@/worlds/scenes/planes"),
+  monolith: () => import("@/worlds/scenes/monolith"),
 };
 
 export const SCENE_COMPONENTS = Object.fromEntries(SCENE_IDS.map((id) => [id, lazy(loaders[id])])) as Record<

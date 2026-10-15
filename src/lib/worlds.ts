@@ -42,10 +42,10 @@ export const WORLDS: Record<WorldId, World> = {
     label: "The studio",
     tagline: "Five worlds, one scroll",
     palette: { day: ["#ff9cc2", "#9dbcff", "#ffe08f"], night: ["#ffa6d0", "#a3b6ff", "#cdb0ff"] },
-    scene: "garden",
+    scene: "monolith",
     entry: "dissolve",
     chapters: [
-      { id: "hero", scene: "garden" },
+      { id: "hero", scene: "monolith" },
       { id: "doors", scene: "doors", transition: "dissolve" },
       { id: "reel", scene: "museum", transition: "wipe" },
       { id: "voices", scene: "bubbles", transition: "chroma" },

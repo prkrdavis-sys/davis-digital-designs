@@ -1,0 +1,1 @@
+{"tag":"night-s100","s":1,"fov":32.43934307624383,"aspect":1.6,"p":[1.3173,1.3427,-2.4231],"q":[0.02922,-0.03948,0.00115,0.99879],"layers":[{"band":"back","file":"night-s100-back.webp","depth":3.045},{"band":"mid","file":"night-s100-mid.webp","depth":2.725}]}

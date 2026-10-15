@@ -196,26 +196,6 @@ html[data-custom-cursor] * {
   animation: shimmer 6s linear infinite;
 }
 
-/* The hero offer sits on a bright sky, so daylight pulls the same shimmer toward ink. */
-.hero-offer {
-  background: linear-gradient(120deg, var(--world-a), var(--world-b), var(--world-c), var(--world-a));
-  background-size: 300% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: shimmer 6s linear infinite;
-}
-
-html[data-theme="light"] .hero-offer {
-  background-image: linear-gradient(
-    120deg,
-    color-mix(in oklab, var(--world-a) 40%, var(--ink)),
-    color-mix(in oklab, var(--world-b) 40%, var(--ink)),
-    color-mix(in oklab, var(--world-c) 34%, var(--ink)),
-    color-mix(in oklab, var(--world-a) 40%, var(--ink))
-  );
-}
-
 @keyframes shimmer {
   to { background-position: 300% 0; }
 }

@@ -17,13 +17,15 @@ interface Props {
   immediate?: boolean;
   delay?: number;
   split?: "chars" | "words";
+  /** A masked rise with no bounce. Used by the homepage hero. */
+  calm?: boolean;
 }
 
 /**
  * Splits text and staggers it in with a bouncy rise + slight rotation.
  * Words get a data attribute so parents can lean them with the cursor.
  */
-export function SplitHeading({ children, as = "h2", className, immediate, delay = 0, split = "chars" }: Props) {
+export function SplitHeading({ children, as = "h2", className, immediate, delay = 0, split = "chars", calm = false }: Props) {
   const ref = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -46,11 +48,11 @@ export function SplitHeading({ children, as = "h2", className, immediate, delay 
 
     const tween = gsap.from(targets, {
       yPercent: 110,
-      rotate: () => gsap.utils.random(-12, 12),
+      rotate: calm ? 0 : () => gsap.utils.random(-12, 12),
       opacity: 0,
-      duration: 0.9,
-      ease: EASE.bounce,
-      stagger: { each: split === "chars" ? 0.022 : 0.08, from: "start" },
+      duration: calm ? 1.05 : 0.9,
+      ease: calm ? "power3.out" : EASE.bounce,
+      stagger: { each: calm ? 0.055 : split === "chars" ? 0.022 : 0.08, from: "start" },
       delay,
       paused: !immediate,
       scrollTrigger: immediate
@@ -63,7 +65,7 @@ export function SplitHeading({ children, as = "h2", className, immediate, delay 
       tween.kill();
       splitter.revert();
     };
-  }, [children, immediate, delay, split]);
+  }, [children, immediate, delay, split, calm]);
 
   // Cast keeps JSX happy with a dynamic tag; the real element is whatever `as` says.
   const Tag = as as "div";

@@ -320,6 +320,12 @@ const BEDS: Record<SceneId, Builder> = {
     const e = every(3, 7, () => flutter(c, wet, 0.025));
     return () => (a(), b(), e());
   },
+  monolith: (c, out, wet) => {
+    const a = pad(c, out, [98, 146.8, 196], { gain: 0.028, cutoff: 640, breathe: 0.025 });
+    const b = wind(c, out, { freq: 1600, q: 0.45, gain: 0.01, gust: 0.35, gustRate: 0.03 });
+    const e = every(9, 18, () => bell(c, wet, 784, 0.01, 6, [1, 2.01, 3]));
+    return () => (a(), b(), e());
+  },
 };
 
 const active = new Map<SceneId, Bed>();

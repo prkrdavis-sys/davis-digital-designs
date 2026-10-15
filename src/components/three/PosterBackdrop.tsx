@@ -28,13 +28,13 @@ export function PosterBackdrop({ live }: { live: boolean }) {
   const [covered, setCovered] = useState(false);
   const posters = useRef(new Map<SceneId, PosterEntry[] | null>());
   const current = useRef("");
+  const pickRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     const world = WORLDS[worldId];
     const segs = buildSegments(world, chapterIds);
     const frame = emptyFrame(world.scene);
     let raf = 0;
-    let alive = true;
 
     const pick = () => {
       const t = live ? engine.t : chapterTimeAt(scrollState.y);
@@ -44,11 +44,12 @@ export function PosterBackdrop({ live }: { live: boolean }) {
       const s = useB ? f.sB : f.sA;
       const list = posters.current.get(scene);
       if (list === undefined) {
+        // null means a request is already in flight. The map survives effect
+        // restarts, so the callback has to call the latest pick, not this one.
         posters.current.set(scene, null);
         void loadPosters(scene).then((p) => {
-          if (!alive) return;
-          posters.current.set(scene, p);
-          pick();
+          posters.current.set(scene, p ?? []);
+          pickRef.current();
         });
         return;
       }
@@ -61,6 +62,8 @@ export function PosterBackdrop({ live }: { live: boolean }) {
       current.current = key;
       setShown((prev) => [...prev.slice(-1), { src: `/worlds/${scene}/posters/${entry.poster}`, key, loaded: false }]);
     };
+
+    pickRef.current = pick;
 
     const onScroll = () => {
       window.cancelAnimationFrame(raf);
@@ -75,7 +78,6 @@ export function PosterBackdrop({ live }: { live: boolean }) {
       setCovered(live && Boolean(canvas && Number(canvas.style.opacity) >= 0.999 && primary && engine.readyScenes.has(primary)));
     }, 700);
     return () => {
-      alive = false;
       window.cancelAnimationFrame(raf);
       window.removeEventListener("scroll", onScroll);
       window.clearInterval(tick);
@@ -83,7 +85,7 @@ export function PosterBackdrop({ live }: { live: boolean }) {
   }, [worldId, chapterIds, variant, live]);
 
   return (
-    <div aria-hidden className="pointer-events-none fixed inset-0 -z-[5] overflow-hidden" style={{ visibility: covered ? "hidden" : "visible" }}>
+    <div aria-hidden className="pointer-events-none fixed inset-0 z-0 overflow-hidden" style={{ visibility: covered ? "hidden" : "visible" }}>
       {shown.map((l) => (
         // eslint-disable-next-line @next/next/no-img-element -- full-bleed decorative stills, crossfaded manually
         <img

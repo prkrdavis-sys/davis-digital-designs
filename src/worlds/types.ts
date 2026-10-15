@@ -11,9 +11,10 @@ export type SceneId =
   | "snowglobe"
   | "dunes"
   | "everest"
-  | "planes";
+  | "planes"
+  | "monolith";
 
-export const SCENE_IDS: SceneId[] = ["garden", "doors", "museum", "bubbles", "diorama", "greenhouse", "dna", "pinball", "snowglobe", "dunes", "everest", "planes"];
+export const SCENE_IDS: SceneId[] = ["garden", "doors", "museum", "bubbles", "diorama", "greenhouse", "dna", "pinball", "snowglobe", "dunes", "everest", "planes", "monolith"];
 
 /** How one scene hands over to the next, in the compositor. */
 export type TransitionKind = "dissolve" | "chroma" | "frost" | "refract" | "dive" | "wipe";
