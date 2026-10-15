@@ -31,7 +31,7 @@ export default async function CategoryPage({ params }: PageProps<"/[category]">)
 
   return (
     <>
-      <PageHero eyebrow={`${cat.emoji} ${world.label} · ${world.tagline}`} title={cat.name} blurb={cat.blurb}>
+      <PageHero title={cat.name} blurb={cat.blurb}>
         <Button href="/contact" variant="world">
           Start one like this
         </Button>

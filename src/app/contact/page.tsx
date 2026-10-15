@@ -21,7 +21,7 @@ export default async function ContactPage({ searchParams }: PageProps<"/contact"
 
   return (
     <>
-      <PageHero eyebrow="✈️ Say hello" title="Let's talk." blurb="Tell me what you're making. I'll tell you how I'd build it, what it would cost, and when you'd have it." />
+      <PageHero title="Let's talk." blurb="Tell me what you're making. I'll tell you how I'd build it, what it would cost, and when you'd have it." />
       <section data-chapter="form" className="px-6 pb-24 md:px-12">
         <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[1fr_360px]">
           <ContactForm defaultSubject={subject} interests={getInterestGroups()} />

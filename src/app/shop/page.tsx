@@ -4,8 +4,6 @@ import { getAllProducts } from "@/lib/content";
 import { PageHero } from "@/components/work/PageHero";
 import { ShopTabs } from "@/components/shop/ShopTabs";
 import { Reveal } from "@/components/ui/Reveal";
-import { WORLDS } from "@/lib/worlds";
-
 export const metadata: Metadata = {
   title: SHOP.name,
   description: SHOP.blurb,
@@ -21,7 +19,7 @@ export default function ShopPage() {
   const products = getAllProducts();
   return (
     <>
-      <PageHero eyebrow={`${SHOP.emoji} ${WORLDS.shop.label} · ${WORLDS.shop.tagline}`} title={SHOP.name} blurb={SHOP.blurb} />
+      <PageHero title={SHOP.name} blurb={SHOP.blurb} />
       <section data-chapter="work" className="px-6 pb-24 md:px-12">
         <div className="mx-auto max-w-6xl">
           <ShopTabs products={products} />
