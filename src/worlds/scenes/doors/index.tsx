@@ -19,6 +19,7 @@ import { CameraFx } from "@/worlds/scenes/doors/CameraFx";
 import { PanoEnvironment } from "@/worlds/scenes/doors/shared/panoEnv";
 import { Dust } from "@/worlds/scenes/doors/shared/Dust";
 import { LoGlints } from "@/worlds/scenes/doors/shared/LoGlints";
+import { GradeEffect, type GradeOptions } from "@/worlds/scenes/doors/shared/Grade";
 
 export function preload() {
   void loadRail(RAIL);
@@ -26,9 +27,9 @@ export function preload() {
   preloadWorldGLTF("doors", "arches.glb");
 }
 
-const LOOK: Record<Variant, { exposure: number; seam: string; grain: number; vignette: number; fog: [string, number]; sun: [string, number]; hemi: [string, string, number] }> = {
-  day: { exposure: 1.0, seam: "#ffb6d3", grain: 0.025, vignette: 0.22, fog: ["#f3dcea", 0.014], sun: ["#fff0dc", 5.0], hemi: ["#fbe8ff", "#f5d7dc", 0.6] },
-  night: { exposure: 1.12, seam: "#b9a4ff", grain: 0.04, vignette: 0.42, fog: ["#0b0e2a", 0.022], sun: ["#bcd0ff", 0.7], hemi: ["#2a3470", "#0a0a18", 0.35] },
+const LOOK: Record<Variant, { exposure: number; seam: string; grain: number; vignette: number; fog: [string, number]; sun: [string, number]; hemi: [string, string, number]; grade: GradeOptions }> = {
+  day: { exposure: 1.0, seam: "#ffb6d3", grain: 0.025, vignette: 0.22, fog: ["#f3dcea", 0.014], sun: ["#fff0dc", 5.0], hemi: ["#fbe8ff", "#f5d7dc", 0.6], grade: { contrast: 1.2, saturation: 1.12 } },
+  night: { exposure: 1.12, seam: "#b9a4ff", grain: 0.04, vignette: 0.42, fog: ["#0b0e2a", 0.022], sun: ["#bcd0ff", 0.7], hemi: ["#2a3470", "#0a0a18", 0.35], grade: { contrast: 1.25, saturation: 1.08 } },
 };
 
 const DUST_BOX = { min: [-8, 0.2, -40] as [number, number, number], max: [9, 7, 16] as [number, number, number] };
@@ -48,10 +49,11 @@ function Hi({ variant, mode }: SceneComponentProps) {
     ({ camera }) => {
       const dof = new DepthOfFieldEffect(camera, { worldFocusRange: 7, bokehScale: night ? 2.4 : 1.8, resolutionScale: 0.5 });
       dof.target = focus;
-      const bloom = new BloomEffect({ intensity: night ? 1.25 : 0.55, luminanceThreshold: night ? 0.55 : 0.92, luminanceSmoothing: 0.2, mipmapBlur: true, radius: 0.75 });
-      return [dof, bloom];
+      const bloom = new BloomEffect({ intensity: night ? 1.1 : 0.4, luminanceThreshold: night ? 0.6 : 1.15, luminanceSmoothing: 0.25, mipmapBlur: true, radius: 0.7 });
+      const grade = new GradeEffect(look.grade);
+      return [dof, bloom, grade];
     },
-    [night, focus],
+    [night, focus, look.grade],
   );
 
   useFrame((_, dt) => {
