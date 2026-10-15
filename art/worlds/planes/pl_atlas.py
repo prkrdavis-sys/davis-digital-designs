@@ -26,9 +26,10 @@ CELLS = [("puff", 1, 0, 0, 512, 384), ("puff", 2, 512, 0, 512, 384), ("puff", 3,
 
 
 def _spheres(kind, seed):
+    """Sphere union, density, noise scale."""
     if kind == "puff":
-        return cl.puff_spheres(seed, size=30.0), 0.35, 0.12
-    return cl.tower_spheres(seed, height=120.0, width=70.0, base=(0.0, 0.0, 0.0), lean=0.1), 1.1, 0.06
+        return cl.puff_spheres(seed, size=30.0), 3.0, 0.2
+    return cl.tower_spheres(seed, height=120.0, width=50.0, base=(0.0, 0.0, 0.0), lean=0.1), 1.6, 0.09
 
 
 def _ambient_world():
@@ -88,10 +89,10 @@ def _render_exr(path, reuse=True):
     return px.reshape(h, w, 4)[::-1]
 
 
-def build(out_dir, pub_dir, samples=48):
+def build(out_dir, pub_dir, samples=24):
     scene.reset()
     sc = scene.cycles(samples=samples, bounces=8, transparent=True, res=(512, 384))
-    cl.volume_settings(sc, 8)
+    cl.volume_settings(sc, 6)
     scene.view("Standard")
     cam = scene.camera()
     cam.data.type = "ORTHO"
@@ -102,9 +103,9 @@ def build(out_dir, pub_dir, samples=48):
     clouds = []
     for k, (kind, seed, x, y, w, h) in enumerate(CELLS):
         sp, dens, scale = _spheres(kind, seed)
-        m = cl.cloud_material(f"{kind}{k}", density=dens, erosion=0.9, gain=1.8, scale=scale, billow=0.45, anisotropy=0.35)
+        m = cl.cloud_material(f"{kind}{k}", density=dens, erosion=0.9, gain=2.2, scale=scale, billow=0.9, anisotropy=0.35)
         vox = 0.3 if kind == "puff" else 1.0
-        o = cl.sphere_cloud(f"c{k}", sp, m, voxel=vox, blur_iters=1, dilate=1)
+        o = cl.sphere_cloud(f"c{k}", sp, m, voxel=vox, blur_width=1, blur_iters=2, dilate=1)
         o.location.x = k * 400.0
         lo = sp[:, :3] - sp[:, 3:4]
         hi = sp[:, :3] + sp[:, 3:4]

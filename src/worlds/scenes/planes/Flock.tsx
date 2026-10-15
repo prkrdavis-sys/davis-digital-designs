@@ -228,7 +228,6 @@ export function Flock({ variant, flow }: { variant: Variant; flow: { speed: numb
       tail: new THREE.Vector3(),
       side: new THREE.Vector3(),
       toCam: new THREE.Vector3(),
-      fwd: new THREE.Vector3(),
       keel: new THREE.Vector3(),
     }),
     [],
@@ -285,10 +284,10 @@ export function Flock({ variant, flow }: { variant: Variant; flow: { speed: numb
         continue;
       }
       if (k === HEROES && Number.isNaN(f.p[0].x)) {
-        // Launch: from just below the form, up and away toward the light on the horizon.
-        worldOf(new THREE.Vector3(-0.35, -0.75, -2.4), f.p[0]);
-        cam.getWorldDirection(tmp.fwd);
-        f.p[1].copy(f.p[0]).addScaledVector(tmp.fwd, 5).add(new THREE.Vector3(0, 2.2, 0));
+        // Launch: from beside the form's send button (the card covers the left of the frame),
+        // swooping up and right, then away toward the light on the horizon.
+        worldOf(tmp.q.set(0.6, -0.5, -2.4), f.p[0]);
+        worldOf(tmp.q.set(2.2, 1.6, -6.5), f.p[1]);
         f.p[2].copy(f.p[0]).addScaledVector(sun, 60).add(new THREE.Vector3(0, 5, 0));
         f.p[3].copy(cam.position).addScaledVector(sun, 700);
         trails.primed[idx] = 0;
