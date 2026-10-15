@@ -16,7 +16,8 @@ import { LOOKS } from "@/worlds/scenes/everest/look";
 import { TERRAIN_TEX, Terrain } from "@/worlds/scenes/everest/Terrain";
 import { Sky } from "@/worlds/scenes/everest/Sky";
 import { Labels, RouteLine } from "@/worlds/scenes/everest/Route";
-import { Glints, NightLights, SummitPlume, ValleyClouds } from "@/worlds/scenes/everest/Atmosphere";
+import { Glints, NightLights, SummitPlume } from "@/worlds/scenes/everest/Atmosphere";
+import { Clouds } from "@/worlds/scenes/everest/Clouds";
 import { LoDrift } from "@/worlds/scenes/everest/LoDrift";
 
 const RAIL = "/worlds/everest/rails.json";
@@ -51,9 +52,10 @@ function Hi({ variant, mode }: SceneComponentProps) {
   const look = LOOKS[variant];
   const drift = useRef(0);
 
-  useLook({ exposure: night ? 1.25 : 1.0, tone: "agx", seam: look.gold, grain: night ? 0.04 : 0.025, vignette: night ? 0.42 : 0.26 });
+  useLook({ exposure: look.exposure, tone: look.tone, seam: look.gold, grain: night ? 0.04 : 0.025, vignette: night ? 0.4 : 0.24 });
   usePostFX(
-    () => [new BloomEffect({ intensity: night ? 1.25 : 0.55, luminanceThreshold: night ? 0.55 : 0.92, luminanceSmoothing: 0.25, mipmapBlur: true, radius: 0.72 })],
+    // Threshold above the brightest baked snow: only the gold line, lamps and sun glints bloom.
+    () => [new BloomEffect({ intensity: night ? 1.1 : 0.7, luminanceThreshold: night ? 0.55 : 1.35, luminanceSmoothing: 0.15, mipmapBlur: true, radius: 0.7 })],
     [night],
   );
 
@@ -71,7 +73,7 @@ function Hi({ variant, mode }: SceneComponentProps) {
       <Terrain data={data} variant={variant} />
       <RouteLine data={data} variant={variant} />
       <Labels data={data} variant={variant} />
-      <ValleyClouds data={data} variant={variant} />
+      <Clouds data={data} variant={variant} />
       <SummitPlume data={data} variant={variant} />
       <Glints variant={variant} />
       {night && <NightLights data={data} />}

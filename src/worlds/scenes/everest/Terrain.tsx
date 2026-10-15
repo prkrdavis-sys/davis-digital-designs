@@ -45,6 +45,10 @@ const fragment = /* glsl */ `
   uniform sampler2D uColor;
   uniform sampler2D uNormal;
   uniform float uGain;
+  uniform vec3 uTint;
+  uniform float uContrast;
+  uniform float uShadowDepth;
+  uniform float uSaturation;
   uniform float uNight;
   uniform float uExag;
   uniform vec3 uKeyColor;
@@ -63,13 +67,24 @@ const fragment = /* glsl */ `
   }
   float fbm(vec2 p) { float v = 0.0; float a = 0.5; for (int i = 0; i < 4; i++) { v += a * vnoise(p); p = p * 2.07 + 13.1; a *= 0.5; } return v; }
 
+  vec3 srgbToLinear(vec3 c) {
+    return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c));
+  }
+
   void main() {
-    vec3 base = texture2D(uColor, vUv).rgb * uGain;
+    vec3 baked = srgbToLinear(texture2D(uColor, vUv).rgb);
+    // Grade: sky-lit (bluish) snow sinks into cool shadow while sunlit faces keep their warmth,
+    // so the massif reads with the warm/cool split of a golden-hour photograph.
+    float bl = dot(baked, vec3(0.2126, 0.7152, 0.0722));
+    float cool = clamp((baked.b - baked.r) / max(baked.b, 1e-3) * 3.0, 0.0, 1.0);
+    vec3 graded = baked * mix(1.0, uShadowDepth, cool * smoothstep(0.12, 0.4, bl));
+    graded = mix(vec3(dot(graded, vec3(0.2126, 0.7152, 0.0722))), graded, uSaturation);
+    vec3 base = 0.2 * pow(max(graded, vec3(1e-4)) / 0.2, vec3(uContrast)) * uGain * uTint;
     vec3 n = normalize(texture2D(uNormal, vUv).xyz * 2.0 - 1.0);
     vec3 toCam = cameraPosition - vWorld;
     float dist = length(toCam);
     vec3 v = toCam / dist;
-    float lum = dot(base, vec3(0.2126, 0.7152, 0.0722));
+    float lum = dot(baked, vec3(0.2126, 0.7152, 0.0722));
 
     // Micro relief the 30 m DEM cannot carry: fbm slope detail, lit by the key light, only up close.
     float near = 1.0 - smoothstep(25.0, 140.0, dist);
@@ -86,14 +101,14 @@ const fragment = /* glsl */ `
       // Snow grain: faint glitter where the key light grazes clean snow.
       float snow = smoothstep(0.55, 0.8, lum) * smoothstep(0.7, 0.9, n.y);
       float spark = step(0.985, hash(floor(vWorld.xz * 60.0) + floor(uTime * 3.0))) * snow * near;
-      base += uKeyColor * spark * (uNight > 0.5 ? 0.35 : 0.8);
+      base += uKeyColor * spark * (uNight > 0.5 ? 1.2 : 0.8) * uGain;
     }
 
     // Sheen on snow toward the key light (the bake is diffuse only).
     vec3 r = reflect(-v, n);
     float spec = pow(max(dot(r, uKey), 0.0), 24.0);
     float snowy = smoothstep(0.35, 0.75, lum) * smoothstep(0.6, 0.9, n.y);
-    base += uKeyColor * spec * snowy * (uNight > 0.5 ? 0.18 : 0.35);
+    base += uKeyColor * spec * snowy * (uNight > 0.5 ? 0.6 : 0.3) * uGain;
 
     // Survey contours: 200 m lines, every fifth one heavier. Fade with distance.
     float meters = vWorld.y * 100.0 / uExag;
@@ -103,9 +118,10 @@ const fragment = /* glsl */ `
     float cm = meters / 1000.0;
     float fwm = max(fwidth(cm), 1e-4);
     float major = 1.0 - smoothstep(0.0, fwm * 1.6, abs(fract(cm + 0.5) - 0.5));
-    float cFade = (1.0 - smoothstep(60.0, 420.0, dist)) * smoothstep(0.0, 20.0, vEdge);
-    float contour = max(line * 0.45, major) * cFade * uContourStrength;
-    base = mix(base, uContour * (uNight > 0.5 ? 1.6 : 1.4), contour);
+    // Survey lines read from altitude, and get out of the way up close (they would look like roads).
+    float cFade = smoothstep(55.0, 140.0, dist) * (1.0 - smoothstep(380.0, 620.0, dist)) * smoothstep(0.0, 20.0, vEdge);
+    float contour = max(line * 0.4, major) * cFade * uContourStrength;
+    base = mix(base, uContour * (uNight > 0.5 ? 0.5 : 1.0), contour);
 
     // Aerial perspective, then the map edges dissolve into the same haze.
     float fog = hazeAmount(cameraPosition, vWorld);
@@ -181,7 +197,8 @@ export function Terrain({ data, variant }: { data: EverestData; variant: Variant
   const [hx, hz] = halfExtent(data.meta);
 
   useMemo(() => {
-    color.colorSpace = THREE.SRGBColorSpace;
+    // Decoded in the shader: some drivers skip the hardware sRGB decode for compressed (BC7) textures.
+    color.colorSpace = THREE.NoColorSpace;
     color.anisotropy = gl.capabilities.getMaxAnisotropy();
     color.wrapS = color.wrapT = THREE.ClampToEdgeWrapping;
     color.needsUpdate = true;
@@ -193,14 +210,17 @@ export function Terrain({ data, variant }: { data: EverestData; variant: Variant
   }, [color, normal, gl]);
 
   const material = useMemo(() => {
-    const bake = data.meta.bake?.[variant];
     return new THREE.ShaderMaterial({
       vertexShader: vertex,
       fragmentShader: fragment,
       uniforms: {
         uColor: { value: color },
         uNormal: { value: normal },
-        uGain: { value: (1 / (bake?.scale ?? 1)) * look.terrainGain },
+        uGain: { value: look.terrainGain },
+        uTint: { value: new THREE.Color(look.terrainTint) },
+        uContrast: { value: look.terrainContrast },
+        uShadowDepth: { value: look.shadowDepth },
+        uSaturation: { value: look.saturation },
         uHalf: { value: new THREE.Vector2(hx, hz) },
         uNight: { value: variant === "night" ? 1 : 0 },
         uExag: { value: data.meta.exag },

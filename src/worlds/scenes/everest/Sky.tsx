@@ -54,7 +54,7 @@ const fragment = /* glsl */ `
     vec3 col;
     if (uNight < 0.5) {
       // Thin high-altitude air: deep zenith, pale band at the horizon, warm toward the low sun.
-      float t = pow(clamp(h, 0.0, 1.0), 0.42);
+      float t = pow(clamp(h, 0.0, 1.0), 0.33);
       col = mix(uHorizon, uZenith, t);
       col = mix(col, uHazeKey * 1.05, pow(max(mu, 0.0), 3.0) * (1.0 - t) * 0.75);
       col += uKeyColor * (pow(max(mu, 0.0), 12.0) * 0.55 + pow(max(mu, 0.0), 180.0) * 2.5);

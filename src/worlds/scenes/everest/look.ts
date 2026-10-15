@@ -1,12 +1,20 @@
 import * as THREE from "three";
+import type { ToneMap } from "@/components/three/engine/compositor";
 import type { Variant } from "@/worlds/types";
 
 /**
  * Light and air, shared by every part of the scene. The sun/moon directions
  * match art/worlds/everest/build.py LIGHT (the terrain bake), so live
  * highlights, haze glow and the sky agree with the baked shadows.
+ *
+ * The terrain bake is normalized so its brightest snow sits at 0.9 and is
+ * shown display-referred: `terrainGain` and `terrainTint` grade it, and the
+ * neutral tone mapper leaves everything under ~0.8 untouched, so the frame
+ * keeps the bake's contrast while the gold line and lamps still bloom.
  */
 export interface EverestLook {
+  tone: ToneMap;
+  exposure: number;
   /** Azimuth (clockwise from north) and elevation of the key light, degrees. */
   az: number;
   el: number;
@@ -19,54 +27,81 @@ export interface EverestLook {
   fogDensity: number;
   /** Multiplies the baked terrain color. */
   terrainGain: number;
+  terrainTint: string;
+  /** Pushes the baked shading apart around mid grey (1 = as baked). */
+  terrainContrast: number;
+  /** Multiplier for sky-lit (bluish) snow: < 1 deepens the cool shadows. */
+  shadowDepth: number;
+  saturation: number;
   gold: string;
   goldHot: string;
   cloud: string;
   cloudShade: string;
+  cloudOpacity: number;
   contour: string;
   contourStrength: number;
   label: string;
   labelMuted: string;
+  card: string;
+  cardOpacity: number;
 }
 
 export const LOOKS: Record<Variant, EverestLook> = {
   day: {
+    tone: "neutral",
+    exposure: 1.0,
     az: 242,
     el: 17,
     keyColor: "#ffc590",
-    zenith: "#3a6db3",
-    horizon: "#d9e3ee",
-    haze: "#bfd0e6",
-    hazeKey: "#ffd2a1",
-    fogDensity: 0.0042,
+    zenith: "#164a9a",
+    horizon: "#a9c3e3",
+    haze: "#9cb6d9",
+    hazeKey: "#ffd3a6",
+    fogDensity: 0.0021,
     terrainGain: 1.0,
-    gold: "#ffb52e",
-    goldHot: "#fff1c4",
-    cloud: "#fff6ec",
-    cloudShade: "#9fb1cf",
-    contour: "#fff4dc",
-    contourStrength: 0.12,
+    terrainTint: "#ffffff",
+    terrainContrast: 1.16,
+    shadowDepth: 0.55,
+    saturation: 1.02,
+    gold: "#ffb21f",
+    goldHot: "#fff0bf",
+    cloud: "#fffaf3",
+    cloudShade: "#8fa3c4",
+    cloudOpacity: 0.92,
+    contour: "#fff6e2",
+    contourStrength: 0.07,
     label: "#ffffff",
-    labelMuted: "#e8eef7",
+    labelMuted: "#c9d6ea",
+    card: "#0d1a2c",
+    cardOpacity: 0.68,
   },
   night: {
+    tone: "neutral",
+    exposure: 1.0,
     az: 118,
     el: 34,
     keyColor: "#b9ccff",
     zenith: "#01030a",
-    horizon: "#0f1c38",
-    haze: "#0b1630",
-    hazeKey: "#27406e",
-    fogDensity: 0.0036,
-    terrainGain: 1.0,
-    gold: "#ffc043",
-    goldHot: "#fff4d2",
-    cloud: "#8ea3cf",
-    cloudShade: "#1a2744",
-    contour: "#7fb0ff",
-    contourStrength: 0.16,
+    horizon: "#0d1a36",
+    haze: "#0a1530",
+    hazeKey: "#1f3766",
+    fogDensity: 0.003,
+    terrainGain: 0.34,
+    terrainTint: "#a9bcff",
+    terrainContrast: 1.15,
+    shadowDepth: 0.7,
+    saturation: 0.85,
+    gold: "#ffbd3a",
+    goldHot: "#fff3cf",
+    cloud: "#7f93c2",
+    cloudShade: "#141f3a",
+    cloudOpacity: 0.8,
+    contour: "#8fb6ff",
+    contourStrength: 0.06,
     label: "#f3f6ff",
-    labelMuted: "#b8c6e6",
+    labelMuted: "#aab9dc",
+    card: "#050a16",
+    cardOpacity: 0.72,
   },
 };
 
@@ -87,11 +122,11 @@ export const HAZE_GLSL = /* glsl */ `
     float mu = max(dot(dir, uKey), 0.0);
     return mix(uHaze, uHazeKey, pow(mu, 5.0) * 0.85);
   }
-  // Exponential haze thinning with altitude (scale height ~2.6 km at 1 unit = 100 m, x1.15).
+  // Exponential haze thinning with altitude (scale height ~4.3 km at 1 unit = 100 m, x1.15).
   float hazeAmount(vec3 cam, vec3 p) {
     float d = length(p - cam);
     float h = max(0.0, min(cam.y, p.y) * 0.5 + max(cam.y, p.y) * 0.5 - 20.0);
-    float dens = uFogDensity * exp(-h * 0.028);
+    float dens = uFogDensity * exp(-h * 0.02);
     return 1.0 - exp(-d * dens);
   }
 `;
