@@ -200,7 +200,7 @@ function buildCabinet(gltf: LoadedGLTF) {
     const m = o as THREE.Mesh;
     if (!m.isMesh || topName(m, gltf.scene) === "playfield") return;
     const src = m.material as THREE.MeshStandardMaterial;
-    const mat = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xffffff, emissiveMap: src.emissiveMap, emissiveIntensity: 2, roughness: 0.28, metalness: 0, envMapIntensity: 0.7 });
+    const mat = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xffffff, emissiveMap: src.emissiveMap, emissiveIntensity: src.emissiveIntensity || 4, roughness: 0.28, metalness: 0, envMapIntensity: 0.7 });
     const geo = bakedGeometry(m);
     geos.push(geo);
     mats.push(mat);

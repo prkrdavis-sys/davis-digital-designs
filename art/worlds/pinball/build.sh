@@ -7,6 +7,12 @@ PUB="$WORLDS_PUBLIC/pinball"
 
 node "$ART_ROOT/fetch/polyhaven.mjs" texture ash_veneer 2k >/dev/null
 node "$ART_ROOT/fetch/polyhaven.mjs" hdri studio_small_09 2k >/dev/null
+# Display fonts (SIL Open Font License) from github.com/google/fonts.
+mkdir -p "$ART_CACHE/fonts"
+for f in ofl/archivoblack/ArchivoBlack-Regular.ttf ofl/bebasneue/BebasNeue-Regular.ttf ofl/titanone/TitanOne-Regular.ttf; do
+  dst="$ART_CACHE/fonts/$(basename "$f")"
+  [ -s "$dst" ] || curl -fsSL -o "$dst" "https://raw.githubusercontent.com/google/fonts/main/$f"
+done
 
 blend pinball --steps art,bake,data,rail --variant both
 node "$ART_ROOT/optimize.mjs" "$OUT/hardware.glb" "$PUB/hi/hardware.glb" --tex mixed --size 2048

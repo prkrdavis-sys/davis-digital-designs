@@ -10,6 +10,8 @@ import type { PinballMeta } from "@/worlds/scenes/pinball/model";
 import type { TableState } from "@/worlds/scenes/pinball/state";
 
 export const MAX_BALLS = 8;
+/** The Cycles lightmap is saved at -2 EV (build.py LIGHTMAP_EV). */
+const LIGHTMAP_SCALE = 4;
 
 const vertex = /* glsl */ `
   uniform mat4 uTexMatrix;
@@ -116,8 +118,8 @@ export function Playfield({ variant, meta, state }: { variant: Variant; meta: Pi
         uRefl: { value: target.texture },
         uReflTexel: { value: new THREE.Vector2(1 / 512, 1 / 512) },
         uTexMatrix: { value: new THREE.Matrix4() },
-        uLightScale: { value: 2.0 },
-        uReflStrength: { value: variant === "night" ? 1.05 : 0.9 },
+        uLightScale: { value: LIGHTMAP_SCALE },
+        uReflStrength: { value: variant === "night" ? 1.05 : 0.8 },
         uBumperPos: { value: meta.bumpers.map((b) => new THREE.Vector3(...b.p)) },
         uBumperCol: { value: meta.bumpers.map((b) => new THREE.Color(b.color)) },
         uBumperFlash: { value: [0, 0, 0] },

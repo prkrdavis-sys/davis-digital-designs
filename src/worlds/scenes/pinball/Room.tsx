@@ -39,15 +39,19 @@ const backdropFragment = /* glsl */ `
     float az = atan(d.x, -d.z);
     float el = d.y;
     if (uNight < 0.5) {
-      // Photo studio: warm white cyc, soft coloured bounce cards left and right.
-      vec3 top = vec3(0.98, 0.95, 0.94);
-      vec3 hor = vec3(0.96, 0.86, 0.92);
-      vec3 low = vec3(0.82, 0.78, 0.9);
-      vec3 col = mix(hor, top, smoothstep(0.0, 0.7, el));
-      col = mix(col, low, smoothstep(0.05, -0.5, el));
-      col += vec3(1.0, 0.45, 0.7) * 0.22 * exp(-pow((az + 1.3) * 1.4, 2.0)) * smoothstep(-0.4, 0.2, el) * smoothstep(0.8, 0.1, el);
-      col += vec3(0.3, 0.85, 1.0) * 0.2 * exp(-pow((az - 1.4) * 1.4, 2.0)) * smoothstep(-0.4, 0.2, el) * smoothstep(0.8, 0.1, el);
-      gl_FragColor = vec4(col * 1.25, 1.0);
+      // Toy-commercial studio: a mid-tone candy cyc (peach horizon, violet top) with pink and
+      // cyan bounce cards. Kept well below white so grazing clear-coat reflections stay colourful.
+      vec3 top = vec3(0.15, 0.12, 0.34);
+      vec3 hor = vec3(0.62, 0.36, 0.5);
+      vec3 low = vec3(0.16, 0.1, 0.22);
+      vec3 col = mix(hor, top, smoothstep(0.02, 0.75, el));
+      col = mix(col, low, smoothstep(0.02, -0.45, el));
+      float cards = smoothstep(-0.3, 0.15, el) * smoothstep(0.75, 0.15, el);
+      col += vec3(1.0, 0.32, 0.6) * 0.34 * exp(-pow((az + 1.3) * 1.3, 2.0)) * cards;
+      col += vec3(0.2, 0.8, 1.0) * 0.3 * exp(-pow((az - 1.4) * 1.3, 2.0)) * cards;
+      // Faint studio haze band at the horizon.
+      col += vec3(1.0, 0.8, 0.75) * 0.08 * exp(-pow(el * 5.0, 2.0));
+      gl_FragColor = vec4(col, 1.0);
       return;
     }
     // Dark arcade: a band of out-of-focus cabinet lights around the horizon.
