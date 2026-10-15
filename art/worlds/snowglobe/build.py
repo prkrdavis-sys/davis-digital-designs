@@ -356,10 +356,10 @@ def bake(o, name, variant, size, samples):
 
 LIGHTMAPS = {
     # group: (size, samples)
-    "village": (2048, 160),
+    "village": (2048, 128),
     "trees": (1024, 128),
     "desk": (2048, 64),
-    "props": (2048, 128),
+    "props": (2048, 96),
 }
 
 
@@ -535,7 +535,7 @@ def step_layers():
             gpu_retry(render.layers, st.cam, s, [("back", back), ("mid", mid)], OUT / "layers", f"{variant}-s{int(round(s * 100)):03d}", samples=st.sc.cycles.samples, depths={"back": f * 1.6})
 
 
-def save_hdr(path, res, samples, location):
+def save_hdr(path, res, samples, location, quality=60):
     sc = bpy.context.scene
     cd = bpy.data.cameras.new("pano")
     cd.type = "PANO"
@@ -550,8 +550,13 @@ def save_hdr(path, res, samples, location):
     sc.camera = co
     sc.render.resolution_x, sc.render.resolution_y = res
     sc.cycles.samples = samples
-    sc.render.image_settings.file_format = "HDR"
-    sc.render.image_settings.color_depth = "32"
+    # Half-float EXR with lossy DWAA: a fraction of a Radiance .hdr, and three's EXRLoader reads it.
+    im = sc.render.image_settings
+    im.file_format = "OPEN_EXR"
+    im.color_mode = "RGB"
+    im.color_depth = "16"
+    im.exr_codec = "DWAA"
+    im.quality = quality
     sc.render.filepath = str(path)
     gpu_retry(bpy.ops.render.render, write_still=True)
     bpy.data.objects.remove(co, do_unlink=True)
@@ -564,11 +569,14 @@ def step_env():
         hide = [o for o in st.objects() if o.get("group") in ("village", "trees", "dynamic", "fx") or o.name.startswith(("globe_", "plaque", "screw"))]
         for o in hide:
             o.hide_render = True
-        save_hdr(PUB / "hi" / f"env-{variant}.hdr", (1024, 512), args.samples or 96, sm.GLOBE_C)
+        save_hdr(PUB / "hi" / f"env-{variant}.exr", (1024, 512), args.samples or 96, sm.GLOBE_C)
         for o in st.objects():
             o.hide_render = True
-        save_hdr(PUB / "hi" / f"bg-{variant}.hdr", (2048, 1024), 4, sm.GLOBE_C)
-        cli.log("env", variant)
+        # The backdrop is only ever seen through heavy depth of field.
+        save_hdr(PUB / "hi" / f"bg-{variant}.exr", (2048, 1024), 16, sm.GLOBE_C, quality=35)
+        for f in (f"env-{variant}.hdr", f"bg-{variant}.hdr"):
+            (PUB / "hi" / f).unlink(missing_ok=True)
+        cli.log("env", variant, *(f"{f}: {(PUB / 'hi' / f).stat().st_size / 1e3:.0f} KB" for f in (f"env-{variant}.exr", f"bg-{variant}.exr")))
 
 
 def step_pano():
