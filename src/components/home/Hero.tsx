@@ -11,8 +11,8 @@ import { Button } from "@/components/ui/Button";
 const ROLES = ["websites", "web apps", "games", "content", "templates"];
 
 /**
- * Kinetic hero: letters bounce in, the headline leans with the cursor, and a
- * rotating word cycles through what the studio makes.
+ * Kinetic hero: letters bounce in, the headline leans with the cursor, and the
+ * offer itself rotates through what the studio makes.
  */
 export function Hero() {
   const wrap = useRef<HTMLDivElement>(null);
@@ -35,7 +35,7 @@ export function Hero() {
   }, [isTouch, reducedMotion]);
 
   return (
-    <section data-chapter="hero" className="relative flex min-h-[100svh] flex-col justify-center px-6 pb-24 pt-36 md:px-12">
+    <section data-chapter="hero" className="relative flex min-h-[100dvh] flex-col justify-center px-6 pb-24 pt-36 md:px-12">
       <div className="mx-auto w-full max-w-6xl [perspective:1200px]">
         <motion.p
           initial={{ opacity: 0, y: 12 }}
@@ -51,18 +51,19 @@ export function Hero() {
         </motion.p>
 
         <div ref={wrap} className="will-change-transform [transform-style:preserve-3d]">
-          <h1 className="font-display text-[clamp(2.8rem,9vw,8.5rem)] font-black leading-[0.92] tracking-[-0.04em]">
+          <h1
+            aria-label="Davis builds websites, web apps, games, content, and templates with a lot of pizazz."
+            className="font-display text-[clamp(2.8rem,8vw,7.4rem)] font-black leading-[0.92] tracking-[-0.04em]"
+          >
             <SplitHeading as="span" immediate delay={0.3} className="block">
-              Digital things
+              Davis builds
             </SplitHeading>
-            <SplitHeading as="span" immediate delay={0.55} className="block">
-              that make people
-            </SplitHeading>
-            <span className="block">
-              <SplitHeading as="span" immediate delay={0.8} className="world-text">
-                go &ldquo;ooh.&rdquo;
-              </SplitHeading>
+            <span className="mt-1 block h-[1.05em] overflow-hidden">
+              <RotatingWord />
             </span>
+            <SplitHeading as="span" immediate delay={0.85} className="block">
+              with a lot of pizazz.
+            </SplitHeading>
           </h1>
         </div>
 
@@ -73,8 +74,7 @@ export function Hero() {
           className="mt-10 flex flex-col gap-8 md:flex-row md:items-end md:justify-between"
         >
           <p className="max-w-xl text-lg leading-relaxed text-[var(--ink-soft)] md:text-xl">
-            I&rsquo;m Davis. I design and build <RotatingWord /> with professional bones and a playful heart. Scroll, and
-            step through the worlds.
+            I&rsquo;m Davis. Professional on the inside, playful on the outside. Scroll, and pick a door.
           </p>
           <div className="flex flex-wrap gap-3">
             <Button href="/sites" size="lg">
@@ -108,10 +108,11 @@ export function Hero() {
 
 function RotatingWord() {
   const ref = useRef<HTMLSpanElement>(null);
+  const reducedMotion = useUi((s) => s.reducedMotion);
 
   useEffect(() => {
     const el = ref.current;
-    if (!el) return;
+    if (!el || reducedMotion) return;
     let i = 0;
     const id = window.setInterval(() => {
       i = (i + 1) % ROLES.length;
@@ -122,13 +123,11 @@ function RotatingWord() {
         .to(el, { yPercent: 0, opacity: 1, duration: 0.45, ease: "back.out(1.8)" });
     }, 2200);
     return () => window.clearInterval(id);
-  }, []);
+  }, [reducedMotion]);
 
   return (
-    <span className="inline-grid overflow-hidden align-bottom">
-      <span ref={ref} className="font-display inline-block font-bold text-[var(--ink)]">
-        {ROLES[0]}
-      </span>
+    <span ref={ref} className="hero-offer inline-block whitespace-nowrap font-black leading-[0.92] tracking-[-0.04em]">
+      {ROLES[0]}
     </span>
   );
 }

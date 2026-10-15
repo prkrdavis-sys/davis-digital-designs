@@ -2,7 +2,7 @@ import type { SceneId } from "@/worlds/types";
 
 /** Human names for scenes and their cursors (easter egg toast, settings, a11y). */
 export const SCENE_INFO: Record<SceneId, { label: string; cursor: string }> = {
-  garden: { label: "Sculpture garden", cursor: "liquid chrome" },
+  garden: { label: "Meadow", cursor: "pollen" },
   doors: { label: "Door corridor", cursor: "portal ring" },
   museum: { label: "Marble hall", cursor: "gallery spotlight" },
   bubbles: { label: "Speech-bubble sky", cursor: "bubble wand" },

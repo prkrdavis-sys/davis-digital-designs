@@ -84,9 +84,15 @@ export function Architecture({ meta, variant, vis, lightDir, lightColor }: { met
     gltf.scene.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;
-      const name = (mesh.material as THREE.Material).name;
-      const part = PARTS[name];
-      if (!part) throw new Error(`greenhouse arch.glb: unexpected material "${name}"`);
+      // useGLTF caches this scene. The effect below swaps in runtime materials,
+      // so a later visit (Apps → Sites) would read a blank name and crash the page.
+      let part = mesh.userData.archPart as Part | undefined;
+      if (!part) {
+        const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+        part = PARTS[material.name];
+        if (!part) throw new Error(`greenhouse arch.glb: unexpected material "${material.name}"`);
+        mesh.userData.archPart = part;
+      }
       out.push({ mesh, part });
     });
     return out;

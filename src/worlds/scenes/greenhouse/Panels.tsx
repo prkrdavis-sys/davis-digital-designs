@@ -11,8 +11,8 @@ import type { PanelMeta } from "@/worlds/scenes/greenhouse/data";
 import { glowMaterial } from "@/worlds/scenes/greenhouse/materials";
 
 const HOSTS: Record<string, string> = {
-  "/work/vtcc-redesign/cover.png": "vtcc.org",
-  "/work/wunderful-life/cover.png": "wunderful.life",
+  "/work/vtcc-redesign/cover.png": "theclinic.care",
+  "/work/wunderful-life/cover.png": "creator.studio",
 };
 
 const LOOK: Record<Variant, { frame: string; bar: string; ink: string; pill: string; glow: string; glowAmount: number; screen: number }> = {

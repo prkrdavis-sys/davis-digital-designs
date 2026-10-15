@@ -41,6 +41,12 @@ export const CREDITS: Credit[] = [
     href: "https://www.rcsb.org/",
   },
   {
+    source: "Quaternius",
+    what: "Stylized meadow plants, trees, and rocks in the homepage hero",
+    license: "CC0",
+    href: "https://quaternius.com/packs/stylizednaturemegakit.html",
+  },
+  {
     source: "Poly Haven",
     what: "HDRIs, textures, and plant models",
     license: "CC0",

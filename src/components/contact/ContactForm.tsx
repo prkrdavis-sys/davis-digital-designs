@@ -73,11 +73,19 @@ export function ContactForm({ defaultSubject = "", interests }: Props) {
             </div>
             <Field label="What is it about?" name="subject" defaultValue={defaultSubject} placeholder="A website, an app, a template..." />
 
-            <fieldset>
-              <legend className="font-display text-sm font-bold">
-                What should it include? <span className="font-normal text-[var(--ink-mute)]">(optional)</span>
-              </legend>
-              <div className="mt-4 space-y-6">
+            <details
+              className="group rounded-2xl border border-[var(--line)] bg-[var(--bg)]"
+              open={interests.some((group) => Boolean(errors[group.id])) || undefined}
+            >
+              <summary className="font-display flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3.5 text-sm font-bold [&::-webkit-details-marker]:hidden">
+                <span>
+                  What should it include? <span className="font-normal text-[var(--ink-mute)]">(optional)</span>
+                </span>
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-[var(--line)] transition-transform duration-500 ease-[var(--ease-bounce)] group-open:rotate-45">
+                  +
+                </span>
+              </summary>
+              <div className="space-y-6 px-4 pb-4">
                 {interests.map((group) => (
                   <fieldset key={group.id}>
                     <legend className="font-display mb-3 text-sm font-bold">
@@ -116,32 +124,42 @@ export function ContactForm({ defaultSubject = "", interests }: Props) {
                   </fieldset>
                 ))}
               </div>
-            </fieldset>
+            </details>
 
-            <fieldset>
-              <legend className="font-display mb-3 text-sm font-bold">Budget (optional)</legend>
-              <input type="hidden" name="budget" value={budget} />
-              <div className="flex flex-wrap gap-2">
-                {BUDGETS.map((b) => (
-                  <button
-                    key={b}
-                    type="button"
-                    data-sfx="silent"
-                    onClick={() => {
-                      setBudget(budget === b ? "" : b);
-                      sfx.pop();
-                    }}
-                    className={cn(
-                      "font-display relative h-10 rounded-full px-4 text-sm font-bold transition-colors",
-                      budget === b ? "text-[#1b2a22]" : "border border-[var(--line)] hover:border-[var(--ink)]",
-                    )}
-                  >
-                    {budget === b && <motion.span layoutId="budget-pill" className="world-gradient absolute inset-0 -z-10 rounded-full" transition={springy} />}
-                    <span className="relative">{b}</span>
-                  </button>
-                ))}
+            <details className="group rounded-2xl border border-[var(--line)] bg-[var(--bg)]">
+              <summary className="font-display flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3.5 text-sm font-bold [&::-webkit-details-marker]:hidden">
+                <span>
+                  Budget <span className="font-normal text-[var(--ink-mute)]">(optional)</span>
+                  {budget ? <span className="ml-2 font-normal text-[var(--ink-soft)]">{budget}</span> : null}
+                </span>
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-[var(--line)] transition-transform duration-500 ease-[var(--ease-bounce)] group-open:rotate-45">
+                  +
+                </span>
+              </summary>
+              <div className="px-4 pb-4">
+                <input type="hidden" name="budget" value={budget} />
+                <div className="flex flex-wrap gap-2">
+                  {BUDGETS.map((b) => (
+                    <button
+                      key={b}
+                      type="button"
+                      data-sfx="silent"
+                      onClick={() => {
+                        setBudget(budget === b ? "" : b);
+                        sfx.pop();
+                      }}
+                      className={cn(
+                        "font-display relative h-10 rounded-full px-4 text-sm font-bold transition-colors",
+                        budget === b ? "text-[#1b2a22]" : "border border-[var(--line)] hover:border-[var(--ink)]",
+                      )}
+                    >
+                      {budget === b && <motion.span layoutId="budget-pill" className="world-gradient absolute inset-0 -z-10 rounded-full" transition={springy} />}
+                      <span className="relative">{b}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </fieldset>
+            </details>
 
             <Field label="Tell me about it" name="message" textarea error={errors.message} placeholder="What are you making? Who is it for? When do you need it?" />
 

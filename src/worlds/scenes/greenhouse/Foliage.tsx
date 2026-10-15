@@ -29,7 +29,10 @@ export function Foliage({ variant, lightDir, vis }: { variant: Variant; lightDir
     gltf.scene.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;
-      const src = mesh.material as THREE.MeshStandardMaterial;
+      // The cached GLB is shared across visits. Keep the authored material so a
+      // return trip still sees leaf maps and lantern names, not the runtime swap.
+      const src = (mesh.userData.liveSrc as THREE.MeshStandardMaterial | undefined) ?? (mesh.material as THREE.MeshStandardMaterial);
+      mesh.userData.liveSrc = src;
       let m = cache.get(src);
       if (!m) {
         const name = src.name ?? "";

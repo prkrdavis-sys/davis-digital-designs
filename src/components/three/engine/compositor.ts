@@ -147,7 +147,9 @@ const fragment = /* glsl */ `
       float m = smoothstep(grow + 0.08, grow - 0.08, edge);
       float cracks = smoothstep(0.06, 0.0, v.y - v.x) * (1.0 - abs(m * 2.0 - 1.0));
       vec2 refr = (vec2(hash(floor(q * 40.0)), hash(floor(q * 40.0) + 5.0)) - 0.5) * 0.01 * (1.0 - abs(p * 2.0 - 1.0));
-      col = mix(sampleA(uv + refr), sampleB(uv - refr), m) + cracks * vec3(0.8, 0.9, 1.0) * 0.6;
+      // m is 1 in the unfrozen interior and falls to 0 as ice grows in from the edges.
+      // Reveal B (incoming) under that ice so the wipe ends on B, matching the p≈1 cut.
+      col = mix(sampleA(uv + refr), sampleB(uv - refr), 1.0 - m) + cracks * vec3(0.8, 0.9, 1.0) * 0.6;
     } else if (uKind == 3) {
       // refract: through a curved glass lens (snow globe).
       vec2 c = (uv - 0.5) * vec2(aspect, 1.0);
